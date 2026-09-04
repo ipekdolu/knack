@@ -66,7 +66,14 @@ function normalizeLemma(input: string): string {
   }
 
   s = s.split(",")[0].trim(); // "dort, -her, -hin" -> "dort"
-  s = s.replace(/-$/, "").trim();
+
+  // A bare stem/prefix still ending in "-" after slash/comma resolution
+  // (e.g. "un-", "kein-", "dies-") is a German word-formation prefix or an
+  // inflected-declension stem from the source list, not a real standalone
+  // dictionary citation form -- drop it rather than import the fragment as
+  // if it were a usable word (this is what produced the "un" -> nonsense
+  // flashcard bug).
+  if (/-$/.test(s)) return "";
 
   // Stray cross-reference entries (e.g. "Zünder (A) (Pl.) -> Streichholz; Zündholz")
   // don't fit any of the patterns above; drop rather than import as garbage.
