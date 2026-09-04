@@ -51,24 +51,10 @@ async function fetchLevelLines(level: Level): Promise<string[]> {
   return lines;
 }
 
-function parseEntry(rawWord: string): ParsedEntry {
-  const stripped = rawWord.replace(/\(\d+\)\s*$/, "").trim();
-
-  // Meta-entry for the article itself, not a real vocabulary word.
-  if (stripped.toLowerCase() === "der, die, das") {
-    return { lemma: "", gender: null };
-  }
-
-  const articleMatch = stripped.match(/^(der|die|das)\s+(.+)$/);
-  if (articleMatch) {
-    const gender = articleMatch[1] as Gender;
-    const lemma = articleMatch[2].split(",")[0].trim();
-    return { lemma, gender };
-  }
-
-  let s = stripped;
+function normalizeLemma(input: string): string {
+  let s = input.trim();
   s = s.replace(/^\(sich\)\s*/i, "sich "); // "(sich) freuen" -> "sich freuen"
-  s = s.replace(/\s*\(pl\.\)\s*$/i, ""); // "Eltern (pl.)" -> "Eltern"
+  s = s.replace(/\s*\((nur\s+)?pl\.\)\s*$/i, ""); // "Eltern (pl.)" / "Zinsen (nur Pl.)" -> "Eltern" / "Zinsen"
 
   // Dual-gender adjectival nouns: "der/die Bekannte" -> "Bekannte" (gender left
   // unset rather than picking one; Claude classifies it as a noun without it).
@@ -82,7 +68,28 @@ function parseEntry(rawWord: string): ParsedEntry {
   s = s.split(",")[0].trim(); // "dort, -her, -hin" -> "dort"
   s = s.replace(/-$/, "").trim();
 
-  return { lemma: s, gender: null };
+  // Stray cross-reference entries (e.g. "Zünder (A) (Pl.) -> Streichholz; Zündholz")
+  // don't fit any of the patterns above; drop rather than import as garbage.
+  if (/[→;]/.test(s)) return "";
+
+  return s;
+}
+
+function parseEntry(rawWord: string): ParsedEntry {
+  const stripped = rawWord.replace(/\(\d+\)\s*$/, "").trim();
+
+  // Meta-entry for the article itself, not a real vocabulary word.
+  if (stripped.toLowerCase() === "der, die, das") {
+    return { lemma: "", gender: null };
+  }
+
+  const articleMatch = stripped.match(/^(der|die|das)\s+(.+)$/);
+  if (articleMatch) {
+    const gender = articleMatch[1] as Gender;
+    return { lemma: normalizeLemma(articleMatch[2]), gender };
+  }
+
+  return { lemma: normalizeLemma(stripped), gender: null };
 }
 
 async function collectLevel(
