@@ -3,10 +3,21 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { or, eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { words, exerciseLog, levelEnum } from "@/db/schema";
+import {
+  words,
+  exerciseLog,
+  userWordProgress,
+  levelEnum,
+  masteryStageEnum,
+} from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
 type Level = (typeof levelEnum.enumValues)[number];
+type MasteryStage = (typeof masteryStageEnum.enumValues)[number];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MASTERED_INTERVAL_MS = 7 * DAY_MS;
+const LEARNING_INTERVAL_MS = 1 * DAY_MS;
 
 export type ExerciseType = "flashcard" | "fill_blank";
 
@@ -25,6 +36,7 @@ export type DashboardStats = {
   totalExercises: number;
   accuracyPct: number | null;
   wordsPracticed: number;
+  mastery: { new: number; learning: number; mastered: number };
 };
 
 export type FlashcardContent = {
@@ -85,13 +97,24 @@ export async function startSession(
       gender: words.gender,
     })
     .from(words)
+    .leftJoin(
+      userWordProgress,
+      and(
+        eq(userWordProgress.wordId, words.id),
+        eq(userWordProgress.userId, user.id),
+      ),
+    )
     .where(
       and(
         or(eq(words.source, "seed"), eq(words.userId, user.id)),
         eq(words.level, level as Level),
       ),
     )
-    .orderBy(sql`random()`)
+    .orderBy(
+      sql`(${userWordProgress.nextDueAt} is null or ${userWordProgress.nextDueAt} <= now()) desc`,
+      sql`${userWordProgress.nextDueAt} asc nulls last`,
+      sql`random()`,
+    )
     .limit(count);
 
   return rows.map((row) => ({
@@ -120,10 +143,31 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   );
   const wordsPracticed = Number(wordsPracticedResult[0]?.count ?? 0);
 
+  const [totalWordsRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(words)
+    .where(or(eq(words.source, "seed"), eq(words.userId, user.id)));
+  const totalWords = totalWordsRow?.count ?? 0;
+
+  const stageCounts = await db
+    .select({
+      stage: userWordProgress.masteryStage,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(userWordProgress)
+    .where(eq(userWordProgress.userId, user.id))
+    .groupBy(userWordProgress.masteryStage);
+
+  const learning = stageCounts.find((s) => s.stage === "learning")?.count ?? 0;
+  const mastered = stageCounts.find((s) => s.stage === "mastered")?.count ?? 0;
+  const explicitNew = stageCounts.find((s) => s.stage === "new")?.count ?? 0;
+  const untouched = Math.max(totalWords - learning - mastered - explicitNew, 0);
+
   return {
     totalExercises: agg?.totalExercises ?? 0,
     accuracyPct: agg?.accuracyPct ?? null,
     wordsPracticed,
+    mastery: { new: explicitNew + untouched, learning, mastered },
   };
 }
 
@@ -241,6 +285,20 @@ export async function generateFillBlank(word: {
   };
 }
 
+function nextMasteryStage(
+  currentStage: MasteryStage,
+  correct: boolean,
+  correctStreak: number,
+): MasteryStage {
+  if (correct) {
+    if (currentStage === "new") return "learning";
+    if (currentStage === "learning") return correctStreak >= 3 ? "mastered" : "learning";
+    return "mastered";
+  }
+  if (currentStage === "mastered") return "learning";
+  return "new";
+}
+
 export async function logExerciseResult(entry: {
   wordId: string;
   type: ExerciseType;
@@ -248,12 +306,53 @@ export async function logExerciseResult(entry: {
   userResponse: string;
 }): Promise<void> {
   const user = await requireUser();
+  const now = new Date();
 
-  await db.insert(exerciseLog).values({
-    userId: user.id,
-    wordIds: [entry.wordId],
-    exerciseType: entry.type,
-    userResponse: entry.userResponse,
-    score: entry.correct ? 1 : 0,
+  await db.transaction(async (tx) => {
+    await tx.insert(exerciseLog).values({
+      userId: user.id,
+      wordIds: [entry.wordId],
+      exerciseType: entry.type,
+      userResponse: entry.userResponse,
+      score: entry.correct ? 1 : 0,
+    });
+
+    const [existing] = await tx
+      .select()
+      .from(userWordProgress)
+      .where(
+        and(
+          eq(userWordProgress.userId, user.id),
+          eq(userWordProgress.wordId, entry.wordId),
+        ),
+      );
+
+    const currentStage: MasteryStage = existing?.masteryStage ?? "new";
+    const correctStreak = entry.correct ? (existing?.correctStreak ?? 0) + 1 : 0;
+    const stage = nextMasteryStage(currentStage, entry.correct, correctStreak);
+
+    const nextDueAt = !entry.correct
+      ? now
+      : new Date(
+          now.getTime() +
+            (stage === "mastered" ? MASTERED_INTERVAL_MS : LEARNING_INTERVAL_MS),
+        );
+
+    const values = {
+      masteryStage: stage,
+      lastSeenAt: now,
+      nextDueAt,
+      correctStreak,
+      timesSeen: (existing?.timesSeen ?? 0) + 1,
+      timesCorrect: (existing?.timesCorrect ?? 0) + (entry.correct ? 1 : 0),
+    };
+
+    await tx
+      .insert(userWordProgress)
+      .values({ userId: user.id, wordId: entry.wordId, ...values })
+      .onConflictDoUpdate({
+        target: [userWordProgress.userId, userWordProgress.wordId],
+        set: values,
+      });
   });
 }

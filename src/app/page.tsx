@@ -47,11 +47,35 @@ export default async function Home() {
           </div>
         </div>
 
-        <div className="mt-3 rounded-lg border border-dashed border-gray-300 p-4 opacity-60">
+        <div className="mt-3 rounded-lg border border-gray-300 p-4">
           <p className="font-medium">Mastery breakdown</p>
-          <p className="text-sm text-gray-500">
-            New / learning / mastered word counts are coming soon.
-          </p>
+          {(() => {
+            const { new: newCount, learning, mastered } = stats.mastery;
+            const total = newCount + learning + mastered || 1;
+            return (
+              <>
+                <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-gray-100">
+                  <div
+                    className="bg-gray-400"
+                    style={{ width: `${(newCount / total) * 100}%` }}
+                  />
+                  <div
+                    className="bg-amber-400"
+                    style={{ width: `${(learning / total) * 100}%` }}
+                  />
+                  <div
+                    className="bg-green-500"
+                    style={{ width: `${(mastered / total) * 100}%` }}
+                  />
+                </div>
+                <div className="mt-2 flex justify-between text-sm text-gray-500">
+                  <span>New: {newCount}</span>
+                  <span>Learning: {learning}</span>
+                  <span>Mastered: {mastered}</span>
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         <div className="mt-6 flex flex-col gap-3">
