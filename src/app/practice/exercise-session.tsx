@@ -8,35 +8,50 @@ import {
   generateFillBlank,
   logExerciseResult,
   type SessionWord,
+  type ExerciseType,
   type FlashcardContent,
   type FillBlankContent,
 } from "./actions";
 
-type Phase = "loading" | "front" | "result" | "complete" | "error";
+type Phase = "level-select" | "loading" | "front" | "result" | "complete" | "error";
 
-export default function PracticeSession() {
+export default function ExerciseSession({
+  type,
+  title,
+  levels,
+}: {
+  type: ExerciseType;
+  title: string;
+  levels: string[];
+}) {
+  const [level, setLevel] = useState<string | null>(null);
   const [queue, setQueue] = useState<SessionWord[]>([]);
   const [index, setIndex] = useState(0);
-  const [phase, setPhase] = useState<Phase>("loading");
+  const [phase, setPhase] = useState<Phase>("level-select");
   const [flashcard, setFlashcard] = useState<FlashcardContent | null>(null);
   const [fillBlank, setFillBlank] = useState<FillBlankContent | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    startSession(10)
-      .then((words) => {
-        setQueue(words);
-        if (words.length === 0) {
-          setPhase("complete");
+  function begin(chosenLevel: string) {
+    setLevel(chosenLevel);
+    setPhase("loading");
+    startSession(type, chosenLevel, 10)
+      .then((sessionWords) => {
+        setQueue(sessionWords);
+        setIndex(0);
+        setScore({ correct: 0, total: 0 });
+        if (sessionWords.length === 0) {
+          setError(`No ${chosenLevel} words available yet.`);
+          setPhase("error");
         }
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : "Failed to start session");
         setPhase("error");
       });
-  }, []);
+  }
 
   useEffect(() => {
     if (queue.length === 0 || index >= queue.length) return;
@@ -102,37 +117,60 @@ export default function PracticeSession() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
       <div className="w-full max-w-md">
-        <Link href="/" className="text-sm text-gray-500 hover:underline">
+        <Link href="/practice" className="text-sm text-gray-500 hover:underline">
           &larr; Back
         </Link>
-        <h1 className="mt-2 text-xl font-semibold">Practice</h1>
+        <h1 className="mt-2 text-xl font-semibold">{title}</h1>
+
+        {phase === "level-select" && (
+          <div className="mt-4 flex flex-col gap-3">
+            <p className="text-sm text-gray-500">Choose a level to practice.</p>
+            <div className="flex flex-wrap gap-2">
+              {levels.map((l) => (
+                <button
+                  key={l}
+                  onClick={() => begin(l)}
+                  className="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {phase === "error" && (
           <div className="mt-4 flex flex-col gap-3">
             <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
             </p>
-            {queue.length > 0 && index < queue.length && (
+            <div className="flex gap-2">
+              {queue.length > 0 && index < queue.length && (
+                <button
+                  onClick={advance}
+                  className="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
+                >
+                  Skip word
+                </button>
+              )}
               <button
-                onClick={advance}
+                onClick={() => setPhase("level-select")}
                 className="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
               >
-                Skip word
+                Choose a different level
               </button>
-            )}
+            </div>
           </div>
         )}
 
-        {phase !== "error" && queue.length === 0 && (
-          <p className="mt-4 text-gray-500">Loading session...</p>
-        )}
-
-        {phase === "loading" && current && (
-          <p className="mt-4 text-gray-500">Generating exercise...</p>
+        {phase === "loading" && (
+          <p className="mt-4 text-gray-500">
+            {queue.length === 0 ? "Loading session..." : "Generating exercise..."}
+          </p>
         )}
 
         {current &&
-          current.type === "flashcard" &&
+          type === "flashcard" &&
           flashcard &&
           (phase === "front" || phase === "result") && (
           <div className="mt-4 flex flex-col gap-4">
@@ -192,7 +230,7 @@ export default function PracticeSession() {
         )}
 
         {current &&
-          current.type === "fill_blank" &&
+          type === "fill_blank" &&
           fillBlank &&
           (phase === "front" || phase === "result") && (
           <div className="mt-4 flex flex-col gap-4">
@@ -254,12 +292,7 @@ export default function PracticeSession() {
                 Home
               </Link>
               <button
-                onClick={() => {
-                  setIndex(0);
-                  setScore({ correct: 0, total: 0 });
-                  setQueue([]);
-                  startSession(10).then(setQueue);
-                }}
+                onClick={() => level && begin(level)}
                 className="flex-1 rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
               >
                 Practice again

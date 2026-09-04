@@ -1,12 +1,16 @@
 "use server";
 
 import Anthropic from "@anthropic-ai/sdk";
-import { or, eq, sql } from "drizzle-orm";
+import { or, eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { words, exerciseLog } from "@/db/schema";
+import { words, exerciseLog, levelEnum } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
+type Level = (typeof levelEnum.enumValues)[number];
+
 export type ExerciseType = "flashcard" | "fill_blank";
+
+const LEVEL_ORDER = ["A1", "A2", "B1", "B2", "C1"];
 
 export type SessionWord = {
   wordId: string;
@@ -15,6 +19,12 @@ export type SessionWord = {
   pos: string;
   gender: string | null;
   type: ExerciseType;
+};
+
+export type DashboardStats = {
+  totalExercises: number;
+  accuracyPct: number | null;
+  wordsPracticed: number;
 };
 
 export type FlashcardContent = {
@@ -46,7 +56,24 @@ function shuffle<T>(items: T[]): T[] {
   return arr;
 }
 
-export async function startSession(count = 10): Promise<SessionWord[]> {
+export async function getAvailableLevels(): Promise<string[]> {
+  const user = await requireUser();
+
+  const rows = await db
+    .selectDistinct({ level: words.level })
+    .from(words)
+    .where(or(eq(words.source, "seed"), eq(words.userId, user.id)));
+
+  return rows
+    .map((r) => r.level)
+    .sort((a, b) => LEVEL_ORDER.indexOf(a) - LEVEL_ORDER.indexOf(b));
+}
+
+export async function startSession(
+  type: ExerciseType,
+  level: string,
+  count = 10,
+): Promise<SessionWord[]> {
   const user = await requireUser();
 
   const rows = await db
@@ -58,18 +85,46 @@ export async function startSession(count = 10): Promise<SessionWord[]> {
       gender: words.gender,
     })
     .from(words)
-    .where(or(eq(words.source, "seed"), eq(words.userId, user.id)))
+    .where(
+      and(
+        or(eq(words.source, "seed"), eq(words.userId, user.id)),
+        eq(words.level, level as Level),
+      ),
+    )
     .orderBy(sql`random()`)
     .limit(count);
 
-  return rows.map((row, i) => ({
+  return rows.map((row) => ({
     wordId: row.id,
     lemma: row.lemma,
     level: row.level,
     pos: row.pos,
     gender: row.gender,
-    type: i % 2 === 0 ? "flashcard" : "fill_blank",
+    type,
   }));
+}
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const user = await requireUser();
+
+  const [agg] = await db
+    .select({
+      totalExercises: sql<number>`count(*)::int`,
+      accuracyPct: sql<number | null>`round(avg(${exerciseLog.score}) * 100)::int`,
+    })
+    .from(exerciseLog)
+    .where(eq(exerciseLog.userId, user.id));
+
+  const wordsPracticedResult = await db.execute<{ count: number }>(
+    sql`select count(distinct w)::int as count from exercise_log, unnest(word_ids) as w where user_id = ${user.id}`,
+  );
+  const wordsPracticed = Number(wordsPracticedResult[0]?.count ?? 0);
+
+  return {
+    totalExercises: agg?.totalExercises ?? 0,
+    accuracyPct: agg?.accuracyPct ?? null,
+    wordsPracticed,
+  };
 }
 
 export async function generateFlashcard(word: {
