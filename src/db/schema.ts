@@ -64,6 +64,16 @@ export const userWordProgress = pgTable(
   (table) => [unique().on(table.userId, table.wordId)],
 );
 
+export const userSettings = pgTable("user_settings", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => authUsers.id),
+  preferredLevel: levelEnum("preferred_level"),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const exerciseLog = pgTable("exercise_log", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id")

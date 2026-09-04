@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getAvailableLevels } from "../actions";
 import ExerciseSession from "../exercise-session";
 
 export default async function FlashcardsPage() {
@@ -13,14 +12,5 @@ export default async function FlashcardsPage() {
     redirect("/login");
   }
 
-  const levels = await getAvailableLevels();
-
-  return (
-    <ExerciseSession
-      type="flashcard"
-      title="Flashcards"
-      levels={levels}
-      showAddWord
-    />
-  );
+  return <ExerciseSession type="flashcard" title="Flashcards" showAddWord />;
 }

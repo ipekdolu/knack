@@ -21,7 +21,12 @@ export default async function Home() {
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-500">{user.email}</p>
-          <LogoutButton />
+          <div className="flex items-center gap-3">
+            <Link href="/settings" className="text-sm text-gray-500 hover:underline">
+              Settings
+            </Link>
+            <LogoutButton />
+          </div>
         </div>
 
         <h1 className="mt-4 text-xl font-semibold">Your progress</h1>
@@ -41,9 +46,9 @@ export default async function Home() {
             <p className="text-2xl font-semibold">{stats.wordsPracticed}</p>
             <p className="text-sm text-gray-500">Words practiced</p>
           </div>
-          <div className="rounded-lg border border-dashed border-gray-300 p-4 opacity-60">
-            <p className="text-2xl font-semibold">&mdash;</p>
-            <p className="text-sm text-gray-500">Day streak (coming soon)</p>
+          <div className="rounded-lg border border-gray-300 p-4">
+            <p className="text-2xl font-semibold">{stats.streak}</p>
+            <p className="text-sm text-gray-500">Day streak</p>
           </div>
         </div>
 
@@ -78,12 +83,20 @@ export default async function Home() {
           })()}
         </div>
 
-        <div className="mt-6 flex flex-col gap-3">
+        <div className="mt-6 flex flex-col gap-2">
+          {stats.level && (
+            <p className="text-center text-sm text-gray-500">
+              {stats.dueToday > 0
+                ? `${stats.dueToday} word${stats.dueToday === 1 ? "" : "s"} due today`
+                : "No words due today"}{" "}
+              &middot; Level {stats.level}
+            </p>
+          )}
           <Link
             href="/practice"
             className="rounded-md bg-black px-4 py-2 text-center text-white hover:bg-gray-800"
           >
-            Practice
+            Start today&apos;s practice
           </Link>
         </div>
       </div>

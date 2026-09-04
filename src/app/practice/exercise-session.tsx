@@ -13,7 +13,7 @@ import {
   type FillBlankContent,
 } from "./actions";
 
-type Phase = "level-select" | "loading" | "front" | "result" | "complete" | "error";
+type Phase = "loading" | "front" | "result" | "complete" | "error";
 type Content = FlashcardContent | FillBlankContent;
 
 const STAGE_LABEL: Record<string, string> = {
@@ -30,18 +30,15 @@ const STAGE_CLASSES: Record<string, string> = {
 export default function ExerciseSession({
   type,
   title,
-  levels,
   showAddWord = false,
 }: {
   type: ExerciseType;
   title: string;
-  levels: string[];
   showAddWord?: boolean;
 }) {
-  const [level, setLevel] = useState<string | null>(null);
   const [queue, setQueue] = useState<SessionWord[]>([]);
   const [index, setIndex] = useState(0);
-  const [phase, setPhase] = useState<Phase>("level-select");
+  const [phase, setPhase] = useState<Phase>("loading");
   const [selected, setSelected] = useState<string | null>(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
@@ -86,18 +83,24 @@ export default function ExerciseSession({
       });
   }
 
-  function begin(chosenLevel: string) {
-    setLevel(chosenLevel);
+  function begin() {
     setPhase("loading");
     contentCache.current = {};
     fetching.current.clear();
-    startSession(type, chosenLevel, 10)
-      .then((sessionWords) => {
+    startSession(type, 10)
+      .then(({ words: sessionWords, level }) => {
         setQueue(sessionWords);
         setIndex(0);
         setScore({ correct: 0, total: 0 });
-        if (sessionWords.length === 0) {
-          setError(`No ${chosenLevel} words available yet.`);
+        if (!level) {
+          setError(
+            "No words available yet -- add a word or wait for the word bank to load.",
+          );
+          setPhase("error");
+        } else if (sessionWords.length === 0) {
+          setError(
+            `No ${level} words available yet. Pick a different level in Settings.`,
+          );
           setPhase("error");
         }
       })
@@ -106,6 +109,11 @@ export default function ExerciseSession({
         setPhase("error");
       });
   }
+
+  useEffect(() => {
+    begin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (queue.length === 0 || index >= queue.length) return;
@@ -165,35 +173,20 @@ export default function ExerciseSession({
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
       <div className="w-full max-w-md">
-        <Link href="/practice" className="text-sm text-gray-500 hover:underline">
-          &larr; Back
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link href="/practice" className="text-sm text-gray-500 hover:underline">
+            &larr; Back
+          </Link>
+          {showAddWord && (
+            <Link
+              href="/words/add"
+              className="text-sm text-gray-500 hover:underline"
+            >
+              + Add a word
+            </Link>
+          )}
+        </div>
         <h1 className="mt-2 text-xl font-semibold">{title}</h1>
-
-        {phase === "level-select" && (
-          <div className="mt-4 flex flex-col gap-3">
-            <p className="text-sm text-gray-500">Choose a level to practice.</p>
-            <div className="flex flex-wrap gap-2">
-              {levels.map((l) => (
-                <button
-                  key={l}
-                  onClick={() => begin(l)}
-                  className="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-            {showAddWord && (
-              <Link
-                href="/words/add"
-                className="mt-2 text-sm text-gray-500 hover:underline"
-              >
-                Don&apos;t see a word you want? Add one &rarr;
-              </Link>
-            )}
-          </div>
-        )}
 
         {phase === "error" && (
           <div className="mt-4 flex flex-col gap-3">
@@ -209,12 +202,12 @@ export default function ExerciseSession({
                   Skip word
                 </button>
               )}
-              <button
-                onClick={() => setPhase("level-select")}
+              <Link
+                href="/settings"
                 className="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
               >
-                Choose a different level
-              </button>
+                Change level
+              </Link>
             </div>
           </div>
         )}
@@ -365,7 +358,7 @@ export default function ExerciseSession({
                 Home
               </Link>
               <button
-                onClick={() => level && begin(level)}
+                onClick={begin}
                 className="flex-1 rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
               >
                 Practice again

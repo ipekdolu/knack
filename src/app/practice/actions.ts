@@ -7,6 +7,7 @@ import {
   words,
   exerciseLog,
   userWordProgress,
+  userSettings,
   levelEnum,
   masteryStageEnum,
 } from "@/db/schema";
@@ -38,6 +39,14 @@ export type DashboardStats = {
   accuracyPct: number | null;
   wordsPracticed: number;
   mastery: { new: number; learning: number; mastered: number };
+  level: string | null;
+  dueToday: number;
+  streak: number;
+};
+
+export type SessionResult = {
+  words: SessionWord[];
+  level: string | null;
 };
 
 export type FlashcardContent = {
@@ -82,22 +91,71 @@ export async function getAvailableLevels(): Promise<string[]> {
     .sort((a, b) => LEVEL_ORDER.indexOf(a) - LEVEL_ORDER.indexOf(b));
 }
 
-export async function startSession(
-  type: ExerciseType,
-  level: string,
-  count = 10,
-): Promise<SessionWord[]> {
-  const user = await requireUser();
+// Resolves which level a user's sessions/stats should use: their explicit
+// setting if they've picked one, otherwise the lowest level they have words
+// in. Returns null only if they have no words available at any level.
+async function getEffectiveLevel(userId: string): Promise<string | null> {
+  const [settingsRow] = await db
+    .select({ preferredLevel: userSettings.preferredLevel })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId));
+
+  if (settingsRow?.preferredLevel) return settingsRow.preferredLevel;
 
   const rows = await db
-    .select({
-      id: words.id,
-      lemma: words.lemma,
-      level: words.level,
-      pos: words.pos,
-      gender: words.gender,
-      masteryStage: userWordProgress.masteryStage,
-    })
+    .selectDistinct({ level: words.level })
+    .from(words)
+    .where(or(eq(words.source, "seed"), eq(words.userId, userId)));
+
+  if (rows.length === 0) return null;
+  return rows
+    .map((r) => r.level)
+    .sort((a, b) => LEVEL_ORDER.indexOf(a) - LEVEL_ORDER.indexOf(b))[0];
+}
+
+const DUE_TARGET = 7;
+const NEW_TARGET = 3;
+
+const sessionWordCols = {
+  id: words.id,
+  lemma: words.lemma,
+  level: words.level,
+  pos: words.pos,
+  gender: words.gender,
+  masteryStage: userWordProgress.masteryStage,
+};
+
+export async function startSession(
+  type: ExerciseType,
+  count = 10,
+): Promise<SessionResult> {
+  const user = await requireUser();
+  const level = await getEffectiveLevel(user.id);
+  if (!level) return { words: [], level: null };
+
+  const scopeWhere = and(
+    or(eq(words.source, "seed"), eq(words.userId, user.id)),
+    eq(words.level, level as Level),
+  );
+
+  // Due: already-seen words whose next_due_at has passed, most overdue first.
+  const dueCandidates = await db
+    .select(sessionWordCols)
+    .from(words)
+    .innerJoin(
+      userWordProgress,
+      and(
+        eq(userWordProgress.wordId, words.id),
+        eq(userWordProgress.userId, user.id),
+      ),
+    )
+    .where(and(scopeWhere, sql`${userWordProgress.nextDueAt} <= now()`))
+    .orderBy(sql`${userWordProgress.nextDueAt} asc`)
+    .limit(count);
+
+  // New: never-seen words (no progress row at all), random order.
+  const newCandidates = await db
+    .select(sessionWordCols)
     .from(words)
     .leftJoin(
       userWordProgress,
@@ -106,28 +164,65 @@ export async function startSession(
         eq(userWordProgress.userId, user.id),
       ),
     )
-    .where(
-      and(
-        or(eq(words.source, "seed"), eq(words.userId, user.id)),
-        eq(words.level, level as Level),
-      ),
-    )
-    .orderBy(
-      sql`(${userWordProgress.nextDueAt} is null or ${userWordProgress.nextDueAt} <= now()) desc`,
-      sql`${userWordProgress.nextDueAt} asc nulls last`,
-      sql`random()`,
-    )
+    .where(and(scopeWhere, sql`${userWordProgress.id} is null`))
+    .orderBy(sql`random()`)
     .limit(count);
 
-  return rows.map((row) => ({
-    wordId: row.id,
-    lemma: row.lemma,
-    level: row.level,
-    pos: row.pos,
-    gender: row.gender,
-    type,
-    masteryStage: row.masteryStage ?? "new",
-  }));
+  const pickedIds = new Set<string>();
+  const picked: SessionWord[] = [];
+
+  type CandidateRow = {
+    id: string;
+    lemma: string;
+    level: Level;
+    pos: string;
+    gender: "der" | "die" | "das" | null;
+    masteryStage: MasteryStage | null;
+  };
+
+  function addFrom(pool: CandidateRow[], max: number) {
+    let added = 0;
+    for (const row of pool) {
+      if (added >= max || picked.length >= count) break;
+      if (pickedIds.has(row.id)) continue;
+      pickedIds.add(row.id);
+      picked.push({
+        wordId: row.id,
+        lemma: row.lemma,
+        level: row.level,
+        pos: row.pos,
+        gender: row.gender,
+        type,
+        masteryStage: row.masteryStage ?? "new",
+      });
+      added++;
+    }
+  }
+
+  addFrom(dueCandidates, DUE_TARGET);
+  addFrom(newCandidates, NEW_TARGET);
+  // Backfill: whichever pool has slack, then anything else at this level.
+  if (picked.length < count) addFrom(dueCandidates, count);
+  if (picked.length < count) addFrom(newCandidates, count);
+
+  if (picked.length < count) {
+    const fallback = await db
+      .select(sessionWordCols)
+      .from(words)
+      .leftJoin(
+        userWordProgress,
+        and(
+          eq(userWordProgress.wordId, words.id),
+          eq(userWordProgress.userId, user.id),
+        ),
+      )
+      .where(scopeWhere)
+      .orderBy(sql`random()`)
+      .limit(count * 2);
+    addFrom(fallback, count);
+  }
+
+  return { words: shuffle(picked), level };
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -166,12 +261,58 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const explicitNew = stageCounts.find((s) => s.stage === "new")?.count ?? 0;
   const untouched = Math.max(totalWords - learning - mastered - explicitNew, 0);
 
+  const level = await getEffectiveLevel(user.id);
+  let dueToday = 0;
+  if (level) {
+    const [dueRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userWordProgress)
+      .innerJoin(words, eq(words.id, userWordProgress.wordId))
+      .where(
+        and(
+          eq(userWordProgress.userId, user.id),
+          eq(words.level, level as Level),
+          sql`${userWordProgress.nextDueAt} <= now()`,
+        ),
+      );
+    dueToday = dueRow?.count ?? 0;
+  }
+
+  const practiceDays = await db.execute<{ day: string }>(
+    sql`select distinct to_char(${exerciseLog.createdAt} at time zone 'utc', 'YYYY-MM-DD') as day from exercise_log where user_id = ${user.id}`,
+  );
+  const streak = computeStreak(new Set(practiceDays.map((r) => r.day)));
+
   return {
     totalExercises: agg?.totalExercises ?? 0,
     accuracyPct: agg?.accuracyPct ?? null,
     wordsPracticed,
     mastery: { new: explicitNew + untouched, learning, mastered },
+    level,
+    dueToday,
+    streak,
   };
+}
+
+function computeStreak(practiceDays: Set<string>): number {
+  const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+  let cursor = new Date();
+  cursor = new Date(
+    Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate()),
+  );
+
+  // Don't break the streak just because today hasn't happened yet -- start
+  // counting from yesterday if today has no exercises logged.
+  if (!practiceDays.has(dayKey(cursor))) {
+    cursor = new Date(cursor.getTime() - DAY_MS);
+  }
+
+  let streak = 0;
+  while (practiceDays.has(dayKey(cursor))) {
+    streak++;
+    cursor = new Date(cursor.getTime() - DAY_MS);
+  }
+  return streak;
 }
 
 export async function generateFlashcard(word: {
