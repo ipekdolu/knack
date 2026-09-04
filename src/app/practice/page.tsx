@@ -42,10 +42,15 @@ export default async function PracticeHubPage() {
             </p>
           </Link>
 
-          <div className="rounded-lg border border-dashed border-gray-300 p-4 opacity-60">
+          <Link
+            href="/practice/write"
+            className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
+          >
             <p className="font-medium">Sentence practice</p>
-            <p className="text-sm text-gray-500">Coming soon.</p>
-          </div>
+            <p className="text-sm text-gray-500">
+              Write a sentence using a few target words, graded by Claude.
+            </p>
+          </Link>
 
           <div className="rounded-lg border border-dashed border-gray-300 p-4 opacity-60">
             <p className="font-medium">Scenario practice</p>

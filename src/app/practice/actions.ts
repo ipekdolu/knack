@@ -3,26 +3,17 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { or, eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { words, exerciseLog, userWordProgress, userSettings } from "@/db/schema";
 import {
-  words,
-  exerciseLog,
-  userWordProgress,
-  userSettings,
-  levelEnum,
-  masteryStageEnum,
-} from "@/db/schema";
-import { createClient } from "@/lib/supabase/server";
+  requireUser,
+  shuffle,
+  applyProgressUpdate,
+  LEVEL_ORDER,
+  type Level,
+  type MasteryStage,
+} from "./shared";
 
-type Level = (typeof levelEnum.enumValues)[number];
-type MasteryStage = (typeof masteryStageEnum.enumValues)[number];
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const MASTERED_INTERVAL_MS = 7 * DAY_MS;
-const LEARNING_INTERVAL_MS = 1 * DAY_MS;
-
-export type ExerciseType = "flashcard" | "fill_blank";
-
-const LEVEL_ORDER = ["A1", "A2", "B1", "B2", "C1"];
+export type ExerciseType = "flashcard" | "fill_blank" | "sentence";
 
 export type SessionWord = {
   wordId: string;
@@ -59,24 +50,6 @@ export type FillBlankContent = {
   options: string[];
   correctAnswer: string;
 };
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
-
-function shuffle<T>(items: T[]): T[] {
-  const arr = [...items];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
 
 export async function getAvailableLevels(): Promise<string[]> {
   const user = await requireUser();
@@ -294,6 +267,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   };
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function computeStreak(practiceDays: Set<string>): number {
   const dayKey = (d: Date) => d.toISOString().slice(0, 10);
   let cursor = new Date();
@@ -429,20 +404,6 @@ export async function generateFillBlank(word: {
   };
 }
 
-function nextMasteryStage(
-  currentStage: MasteryStage,
-  correct: boolean,
-  correctStreak: number,
-): MasteryStage {
-  if (correct) {
-    if (currentStage === "new") return "learning";
-    if (currentStage === "learning") return correctStreak >= 3 ? "mastered" : "learning";
-    return "mastered";
-  }
-  if (currentStage === "mastered") return "learning";
-  return "new";
-}
-
 export async function logExerciseResult(entry: {
   wordId: string;
   type: ExerciseType;
@@ -450,7 +411,6 @@ export async function logExerciseResult(entry: {
   userResponse: string;
 }): Promise<void> {
   const user = await requireUser();
-  const now = new Date();
 
   await db.transaction(async (tx) => {
     await tx.insert(exerciseLog).values({
@@ -461,42 +421,6 @@ export async function logExerciseResult(entry: {
       score: entry.correct ? 1 : 0,
     });
 
-    const [existing] = await tx
-      .select()
-      .from(userWordProgress)
-      .where(
-        and(
-          eq(userWordProgress.userId, user.id),
-          eq(userWordProgress.wordId, entry.wordId),
-        ),
-      );
-
-    const currentStage: MasteryStage = existing?.masteryStage ?? "new";
-    const correctStreak = entry.correct ? (existing?.correctStreak ?? 0) + 1 : 0;
-    const stage = nextMasteryStage(currentStage, entry.correct, correctStreak);
-
-    const nextDueAt = !entry.correct
-      ? now
-      : new Date(
-          now.getTime() +
-            (stage === "mastered" ? MASTERED_INTERVAL_MS : LEARNING_INTERVAL_MS),
-        );
-
-    const values = {
-      masteryStage: stage,
-      lastSeenAt: now,
-      nextDueAt,
-      correctStreak,
-      timesSeen: (existing?.timesSeen ?? 0) + 1,
-      timesCorrect: (existing?.timesCorrect ?? 0) + (entry.correct ? 1 : 0),
-    };
-
-    await tx
-      .insert(userWordProgress)
-      .values({ userId: user.id, wordId: entry.wordId, ...values })
-      .onConflictDoUpdate({
-        target: [userWordProgress.userId, userWordProgress.wordId],
-        set: values,
-      });
+    await applyProgressUpdate(tx, user.id, entry.wordId, entry.correct);
   });
 }
