@@ -8,6 +8,13 @@
       "when": 1785502404814,
       "tag": "0000_thankful_cable",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788519963405,
+      "tag": "0001_enable_rls",
+      "breakpoints": true
     }
   ]
 }
