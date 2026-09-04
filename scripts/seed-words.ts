@@ -54,7 +54,7 @@ async function fetchLevelLines(level: Level): Promise<string[]> {
 function normalizeLemma(input: string): string {
   let s = input.trim();
   s = s.replace(/^\(sich\)\s*/i, "sich "); // "(sich) freuen" -> "sich freuen"
-  s = s.replace(/\s*\((nur\s+)?pl\.\)\s*$/i, ""); // "Eltern (pl.)" / "Zinsen (nur Pl.)" -> "Eltern" / "Zinsen"
+  s = s.replace(/\s*\((nur\s+)?(pl|sg)\.\)\s*$/i, ""); // "Eltern (pl.)" / "Zinsen (nur Pl.)" / "Wasser (Sg.)" -> stripped
 
   // Dual-gender adjectival nouns: "der/die Bekannte" -> "Bekannte" (gender left
   // unset rather than picking one; Claude classifies it as a noun without it).
@@ -76,12 +76,17 @@ function normalizeLemma(input: string): string {
 }
 
 function parseEntry(rawWord: string): ParsedEntry {
-  const stripped = rawWord.replace(/\(\d+\)\s*$/, "").trim();
+  let stripped = rawWord.replace(/\(\d+\)\s*$/, "").trim();
 
   // Meta-entry for the article itself, not a real vocabulary word.
   if (stripped.toLowerCase() === "der, die, das") {
     return { lemma: "", gender: null };
   }
+
+  // Stray bound-prefix fragment glued onto the real word, e.g.
+  // "Kriminal- die Kriminalpolizei" -> "die Kriminalpolizei". The prefix
+  // isn't a usable standalone lemma, so drop it and keep the full word.
+  stripped = stripped.replace(/^\S+-\s+(?=(der|die|das)\s)/, "");
 
   const articleMatch = stripped.match(/^(der|die|das)\s+(.+)$/);
   if (articleMatch) {
