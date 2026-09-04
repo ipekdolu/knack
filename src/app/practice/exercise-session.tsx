@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   startSession,
@@ -14,6 +14,18 @@ import {
 } from "./actions";
 
 type Phase = "level-select" | "loading" | "front" | "result" | "complete" | "error";
+type Content = FlashcardContent | FillBlankContent;
+
+const STAGE_LABEL: Record<string, string> = {
+  new: "New",
+  learning: "Learning",
+  mastered: "Mastered",
+};
+const STAGE_CLASSES: Record<string, string> = {
+  new: "bg-gray-100 text-gray-600",
+  learning: "bg-amber-100 text-amber-700",
+  mastered: "bg-green-100 text-green-700",
+};
 
 export default function ExerciseSession({
   type,
@@ -30,15 +42,55 @@ export default function ExerciseSession({
   const [queue, setQueue] = useState<SessionWord[]>([]);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>("level-select");
-  const [flashcard, setFlashcard] = useState<FlashcardContent | null>(null);
-  const [fillBlank, setFillBlank] = useState<FillBlankContent | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
 
+  // Content is cached by queue index in a ref (not state) so a background
+  // prefetch of the *next* card doesn't need to trigger a re-render -- only
+  // fetches for the currently-displayed index drive a phase change. This is
+  // what lets the "Generating exercise..." screen disappear between cards:
+  // by the time the user clicks Next, the next card's content is usually
+  // already sitting in this cache.
+  const contentCache = useRef<Record<number, Content>>({});
+  const fetching = useRef<Set<number>>(new Set());
+  const indexRef = useRef(index);
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
+
+  function fetchContent(word: SessionWord): Promise<Content> {
+    return type === "flashcard" ? generateFlashcard(word) : generateFillBlank(word);
+  }
+
+  function ensureFetched(i: number, words: SessionWord[]) {
+    if (i < 0 || i >= words.length) return;
+    if (contentCache.current[i] || fetching.current.has(i)) return;
+    fetching.current.add(i);
+    fetchContent(words[i])
+      .then((content) => {
+        contentCache.current[i] = content;
+        fetching.current.delete(i);
+        if (i === indexRef.current) {
+          setPhase("front");
+        }
+      })
+      .catch((err) => {
+        fetching.current.delete(i);
+        if (i === indexRef.current) {
+          setError(
+            err instanceof Error ? err.message : "Failed to generate exercise",
+          );
+          setPhase("error");
+        }
+      });
+  }
+
   function begin(chosenLevel: string) {
     setLevel(chosenLevel);
     setPhase("loading");
+    contentCache.current = {};
+    fetching.current.clear();
     startSession(type, chosenLevel, 10)
       .then((sessionWords) => {
         setQueue(sessionWords);
@@ -58,29 +110,22 @@ export default function ExerciseSession({
   useEffect(() => {
     if (queue.length === 0 || index >= queue.length) return;
 
-    const current = queue[index];
-    setPhase("loading");
-    setFlashcard(null);
-    setFillBlank(null);
     setSelected(null);
     setError(null);
 
-    const load =
-      current.type === "flashcard"
-        ? generateFlashcard(current).then(setFlashcard)
-        : generateFillBlank(current).then(setFillBlank);
-
-    load
-      .then(() => setPhase("front"))
-      .catch((err) => {
-        setError(
-          err instanceof Error ? err.message : "Failed to generate exercise",
-        );
-        setPhase("error");
-      });
+    if (contentCache.current[index]) {
+      setPhase("front");
+    } else {
+      setPhase("loading");
+      ensureFetched(index, queue);
+    }
+    // Prefetch the next card while this one is being viewed/answered.
+    ensureFetched(index + 1, queue);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queue, index]);
 
   const current = queue[index];
+  const content = contentCache.current[index];
 
   function advance() {
     if (index + 1 >= queue.length) {
@@ -103,7 +148,8 @@ export default function ExerciseSession({
   }
 
   async function handleFillBlankSelect(option: string) {
-    if (!current || !fillBlank) return;
+    if (!current || !content) return;
+    const fillBlank = content as FillBlankContent;
     const correct = option === fillBlank.correctAnswer;
     setSelected(option);
     setScore((s) => ({ correct: s.correct + (correct ? 1 : 0), total: s.total + 1 }));
@@ -181,12 +227,19 @@ export default function ExerciseSession({
 
         {current &&
           type === "flashcard" &&
-          flashcard &&
+          content &&
           (phase === "front" || phase === "result") && (
           <div className="mt-4 flex flex-col gap-4">
-            <p className="text-xs text-gray-500">
-              {index + 1} / {queue.length} &middot; {current.level}
-            </p>
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>
+                {index + 1} / {queue.length} &middot; {current.level}
+              </span>
+              <span
+                className={`rounded-full px-2 py-0.5 font-medium ${STAGE_CLASSES[current.masteryStage]}`}
+              >
+                {STAGE_LABEL[current.masteryStage]}
+              </span>
+            </div>
             <div className="rounded-lg border border-gray-300 p-6 text-center">
               <p className="text-2xl font-semibold">
                 {current.gender ? `${current.gender} ` : ""}
@@ -195,9 +248,11 @@ export default function ExerciseSession({
               {phase === "result" && (
                 <div className="mt-4 flex flex-col gap-2 text-left">
                   <p className="italic text-gray-700">
-                    {flashcard.exampleSentence}
+                    {(content as FlashcardContent).exampleSentence}
                   </p>
-                  <p className="text-sm text-gray-500">{flashcard.gloss}</p>
+                  <p className="text-sm text-gray-500">
+                    {(content as FlashcardContent).gloss}
+                  </p>
                 </div>
               )}
             </div>
@@ -241,20 +296,28 @@ export default function ExerciseSession({
 
         {current &&
           type === "fill_blank" &&
-          fillBlank &&
+          content &&
           (phase === "front" || phase === "result") && (
           <div className="mt-4 flex flex-col gap-4">
-            <p className="text-xs text-gray-500">
-              {index + 1} / {queue.length} &middot; {current.level}
-            </p>
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>
+                {index + 1} / {queue.length} &middot; {current.level}
+              </span>
+              <span
+                className={`rounded-full px-2 py-0.5 font-medium ${STAGE_CLASSES[current.masteryStage]}`}
+              >
+                {STAGE_LABEL[current.masteryStage]}
+              </span>
+            </div>
             <div className="rounded-lg border border-gray-300 p-6 text-center">
-              <p className="text-lg">{fillBlank.sentence}</p>
+              <p className="text-lg">{(content as FillBlankContent).sentence}</p>
             </div>
 
             <div className="flex flex-col gap-2">
-              {fillBlank.options.map((option) => {
+              {(content as FillBlankContent).options.map((option) => {
                 const isSelected = selected === option;
-                const isCorrectOption = option === fillBlank.correctAnswer;
+                const isCorrectOption =
+                  option === (content as FillBlankContent).correctAnswer;
                 const showFeedback = phase === "result";
                 let classes =
                   "rounded-md border px-4 py-2 text-left hover:bg-gray-100 border-gray-300";

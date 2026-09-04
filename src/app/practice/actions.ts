@@ -30,6 +30,7 @@ export type SessionWord = {
   pos: string;
   gender: string | null;
   type: ExerciseType;
+  masteryStage: MasteryStage;
 };
 
 export type DashboardStats = {
@@ -95,6 +96,7 @@ export async function startSession(
       level: words.level,
       pos: words.pos,
       gender: words.gender,
+      masteryStage: userWordProgress.masteryStage,
     })
     .from(words)
     .leftJoin(
@@ -124,6 +126,7 @@ export async function startSession(
     pos: row.pos,
     gender: row.gender,
     type,
+    masteryStage: row.masteryStage ?? "new",
   }));
 }
 
