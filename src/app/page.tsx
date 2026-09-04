@@ -17,8 +17,14 @@ export default async function Home() {
     <div className="flex min-h-screen flex-col items-center justify-center gap-4">
       <p className="text-lg">Logged in as {user.email}</p>
       <Link
-        href="/words/add"
+        href="/practice"
         className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
+      >
+        Practice
+      </Link>
+      <Link
+        href="/words/add"
+        className="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
       >
         Add a word
       </Link>
