@@ -240,7 +240,7 @@ export default function ExerciseSession({
                 {STAGE_LABEL[current.masteryStage]}
               </span>
             </div>
-            <div className="rounded-lg border border-gray-300 p-6 text-center">
+            <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-gray-300 p-6 text-center">
               <p className="text-2xl font-semibold">
                 {current.gender ? `${current.gender} ` : ""}
                 {current.lemma}
@@ -309,7 +309,7 @@ export default function ExerciseSession({
                 {STAGE_LABEL[current.masteryStage]}
               </span>
             </div>
-            <div className="rounded-lg border border-gray-300 p-6 text-center">
+            <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-gray-300 p-6 text-center">
               <p className="text-lg">{(content as FillBlankContent).sentence}</p>
             </div>
 
