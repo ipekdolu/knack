@@ -19,10 +19,12 @@ export default function ExerciseSession({
   type,
   title,
   levels,
+  showAddWord = false,
 }: {
   type: ExerciseType;
   title: string;
   levels: string[];
+  showAddWord?: boolean;
 }) {
   const [level, setLevel] = useState<string | null>(null);
   const [queue, setQueue] = useState<SessionWord[]>([]);
@@ -136,6 +138,14 @@ export default function ExerciseSession({
                 </button>
               ))}
             </div>
+            {showAddWord && (
+              <Link
+                href="/words/add"
+                className="mt-2 text-sm text-gray-500 hover:underline"
+              >
+                Don&apos;t see a word you want? Add one &rarr;
+              </Link>
+            )}
           </div>
         )}
 

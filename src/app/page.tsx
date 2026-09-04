@@ -61,12 +61,6 @@ export default async function Home() {
           >
             Practice
           </Link>
-          <Link
-            href="/words/add"
-            className="rounded-md border border-gray-300 px-4 py-2 text-center hover:bg-gray-100"
-          >
-            Add a word
-          </Link>
         </div>
       </div>
     </div>

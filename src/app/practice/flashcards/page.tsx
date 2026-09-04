@@ -15,5 +15,12 @@ export default async function FlashcardsPage() {
 
   const levels = await getAvailableLevels();
 
-  return <ExerciseSession type="flashcard" title="Flashcards" levels={levels} />;
+  return (
+    <ExerciseSession
+      type="flashcard"
+      title="Flashcards"
+      levels={levels}
+      showAddWord
+    />
+  );
 }
