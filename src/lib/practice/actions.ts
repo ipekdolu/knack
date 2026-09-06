@@ -12,6 +12,7 @@ import {
   type Level,
   type MasteryStage,
 } from "./shared";
+import { getOrCreateContent } from "./content-cache";
 
 export type ExerciseType =
   | "flashcard"
@@ -28,6 +29,7 @@ export type SessionWord = {
   gender: string | null;
   type: ExerciseType;
   masteryStage: MasteryStage;
+  isFlagged: boolean;
 };
 
 export type DashboardStats = {
@@ -101,15 +103,27 @@ const sessionWordCols = {
   pos: words.pos,
   gender: words.gender,
   masteryStage: userWordProgress.masteryStage,
+  isFlagged: userWordProgress.isFlagged,
 };
+
+const DEFAULT_SESSION_SIZE = 10;
 
 export async function startSession(
   type: ExerciseType,
-  count = 10,
+  count?: number,
 ): Promise<SessionResult> {
   const user = await requireUser();
   const level = await getEffectiveLevel(user.id);
   if (!level) return { words: [], level: null };
+
+  if (count === undefined) {
+    const [settingsRow] = await db
+      .select({ cardsPerSession: userSettings.cardsPerSession })
+      .from(userSettings)
+      .where(eq(userSettings.userId, user.id));
+    count = settingsRow?.cardsPerSession ?? DEFAULT_SESSION_SIZE;
+  }
+  const sessionSize: number = count;
 
   const scopeWhere = and(
     or(eq(words.source, "seed"), eq(words.userId, user.id)),
@@ -129,7 +143,7 @@ export async function startSession(
     )
     .where(and(scopeWhere, sql`${userWordProgress.nextDueAt} <= now()`))
     .orderBy(sql`${userWordProgress.nextDueAt} asc`)
-    .limit(count);
+    .limit(sessionSize);
 
   // New: never-seen words (no progress row at all), random order.
   const newCandidates = await db
@@ -144,7 +158,7 @@ export async function startSession(
     )
     .where(and(scopeWhere, sql`${userWordProgress.id} is null`))
     .orderBy(sql`random()`)
-    .limit(count);
+    .limit(sessionSize);
 
   const pickedIds = new Set<string>();
   const picked: SessionWord[] = [];
@@ -156,12 +170,13 @@ export async function startSession(
     pos: string;
     gender: "der" | "die" | "das" | null;
     masteryStage: MasteryStage | null;
+    isFlagged: boolean | null;
   };
 
   function addFrom(pool: CandidateRow[], max: number) {
     let added = 0;
     for (const row of pool) {
-      if (added >= max || picked.length >= count) break;
+      if (added >= max || picked.length >= sessionSize) break;
       if (pickedIds.has(row.id)) continue;
       pickedIds.add(row.id);
       picked.push({
@@ -172,6 +187,7 @@ export async function startSession(
         gender: row.gender,
         type,
         masteryStage: row.masteryStage ?? "new",
+        isFlagged: row.isFlagged ?? false,
       });
       added++;
     }
@@ -180,10 +196,10 @@ export async function startSession(
   addFrom(dueCandidates, DUE_TARGET);
   addFrom(newCandidates, NEW_TARGET);
   // Backfill: whichever pool has slack, then anything else at this level.
-  if (picked.length < count) addFrom(dueCandidates, count);
-  if (picked.length < count) addFrom(newCandidates, count);
+  if (picked.length < sessionSize) addFrom(dueCandidates, sessionSize);
+  if (picked.length < sessionSize) addFrom(newCandidates, sessionSize);
 
-  if (picked.length < count) {
+  if (picked.length < sessionSize) {
     const fallback = await db
       .select(sessionWordCols)
       .from(words)
@@ -196,11 +212,85 @@ export async function startSession(
       )
       .where(scopeWhere)
       .orderBy(sql`random()`)
-      .limit(count * 2);
-    addFrom(fallback, count);
+      .limit(sessionSize * 2);
+    addFrom(fallback, sessionSize);
   }
 
   return { words: shuffle(picked), level };
+}
+
+// Difficult pool: manually flagged OR auto-flagged by weak accuracy (at
+// least 3 attempts and under 50% correct). Manual flags surface regardless
+// of accuracy -- the point is user judgment can override the average.
+const MIN_ATTEMPTS_FOR_AUTO_DIFFICULT = 3;
+const AUTO_DIFFICULT_ACCURACY_THRESHOLD = 0.5;
+
+export async function getDifficultWords(count = 20): Promise<SessionWord[]> {
+  const user = await requireUser();
+
+  const rows = await db
+    .select(sessionWordCols)
+    .from(words)
+    .innerJoin(
+      userWordProgress,
+      and(
+        eq(userWordProgress.wordId, words.id),
+        eq(userWordProgress.userId, user.id),
+      ),
+    )
+    .where(
+      and(
+        or(eq(words.source, "seed"), eq(words.userId, user.id)),
+        or(
+          eq(userWordProgress.isFlagged, true),
+          and(
+            sql`${userWordProgress.timesSeen} >= ${MIN_ATTEMPTS_FOR_AUTO_DIFFICULT}`,
+            sql`${userWordProgress.timesCorrect}::float / nullif(${userWordProgress.timesSeen}, 0) < ${AUTO_DIFFICULT_ACCURACY_THRESHOLD}`,
+          ),
+        ),
+      ),
+    )
+    .orderBy(sql`random()`)
+    .limit(count);
+
+  return shuffle(
+    rows.map((row) => ({
+      wordId: row.id,
+      lemma: row.lemma,
+      level: row.level,
+      pos: row.pos,
+      gender: row.gender,
+      type: "flashcard" as const,
+      masteryStage: row.masteryStage ?? "new",
+      isFlagged: row.isFlagged ?? false,
+    })),
+  );
+}
+
+export async function toggleWordFlag(wordId: string): Promise<boolean> {
+  const user = await requireUser();
+
+  const [existing] = await db
+    .select({ isFlagged: userWordProgress.isFlagged })
+    .from(userWordProgress)
+    .where(
+      and(
+        eq(userWordProgress.userId, user.id),
+        eq(userWordProgress.wordId, wordId),
+      ),
+    );
+
+  const nextFlagged = !(existing?.isFlagged ?? false);
+
+  await db
+    .insert(userWordProgress)
+    .values({ userId: user.id, wordId, isFlagged: nextFlagged })
+    .onConflictDoUpdate({
+      target: [userWordProgress.userId, userWordProgress.wordId],
+      set: { isFlagged: nextFlagged },
+    });
+
+  return nextFlagged;
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -295,18 +385,16 @@ function computeStreak(practiceDays: Set<string>): number {
   return streak;
 }
 
-export async function generateFlashcard(word: {
+async function callFlashcardModel(word: {
   lemma: string;
   level: string;
   pos: string;
   gender: string | null;
 }): Promise<FlashcardContent> {
-  await requireUser();
-
   const anthropic = new Anthropic();
   const wordDesc = word.gender ? `${word.gender} ${word.lemma}` : word.lemma;
   const response = await anthropic.messages.create({
-    model: "claude-opus-5",
+    model: "claude-haiku-4-5",
     max_tokens: 1024,
     system:
       "You write flashcard content for a German vocabulary learning app, calibrated to CEFR levels.",
@@ -345,14 +433,31 @@ export async function generateFlashcard(word: {
   return { exampleSentence: input.example_sentence, gloss: input.gloss };
 }
 
-export async function generateFillBlank(word: {
+export async function generateFlashcard(
+  word: {
+    wordId: string;
+    lemma: string;
+    level: string;
+    pos: string;
+    gender: string | null;
+  },
+  options: { allowNewVariant?: boolean } = {},
+): Promise<FlashcardContent> {
+  await requireUser();
+  return getOrCreateContent(
+    word.wordId,
+    "flashcard",
+    () => callFlashcardModel(word),
+    options,
+  );
+}
+
+async function callFillBlankModel(word: {
   lemma: string;
   level: string;
   pos: string;
   gender: string | null;
 }): Promise<FillBlankContent> {
-  await requireUser();
-
   const anthropic = new Anthropic();
   const wordDesc = word.gender ? `${word.gender} ${word.lemma}` : word.lemma;
   const response = await anthropic.messages.create({
@@ -407,6 +512,25 @@ export async function generateFillBlank(word: {
     correctAnswer: input.correct_answer,
     options: shuffle([input.correct_answer, ...input.distractors]),
   };
+}
+
+export async function generateFillBlank(
+  word: {
+    wordId: string;
+    lemma: string;
+    level: string;
+    pos: string;
+    gender: string | null;
+  },
+  options: { allowNewVariant?: boolean } = {},
+): Promise<FillBlankContent> {
+  await requireUser();
+  return getOrCreateContent(
+    word.wordId,
+    "fill_blank",
+    () => callFillBlankModel(word),
+    options,
+  );
 }
 
 export async function logExerciseResult(entry: {

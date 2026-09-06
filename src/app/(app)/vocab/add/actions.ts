@@ -2,30 +2,16 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/db";
-import { words } from "@/db/schema";
+import { words as wordsTable } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
-
-const LEVELS = ["A1", "A2", "B1", "B2", "C1"] as const;
-const POS_VALUES = [
-  "noun",
-  "verb",
-  "adjective",
-  "adverb",
-  "pronoun",
-  "preposition",
-  "conjunction",
-  "numeral",
-  "interjection",
-  "particle",
-] as const;
-const GENDERS = ["der", "die", "das"] as const;
-
-export type WordSuggestion = {
-  lemma: string;
-  level: (typeof LEVELS)[number];
-  pos: (typeof POS_VALUES)[number];
-  gender: (typeof GENDERS)[number] | null;
-};
+import {
+  LEVELS,
+  POS_VALUES,
+  GENDERS,
+  MAX_BATCH_WORDS,
+  type WordSuggestion,
+  type BatchInferenceResult,
+} from "./types";
 
 export async function inferWordDetails(
   rawLemma: string,
@@ -41,7 +27,7 @@ export async function inferWordDetails(
 
   const anthropic = new Anthropic();
   const response = await anthropic.messages.create({
-    model: "claude-opus-5",
+    model: "claude-haiku-4-5",
     max_tokens: 1024,
     system:
       "You classify German vocabulary words for a CEFR-aligned (A1-C1) vocabulary learning app.",
@@ -105,22 +91,55 @@ export async function inferWordDetails(
   };
 }
 
-export async function saveWord(word: WordSuggestion): Promise<void> {
+export async function inferWordBatch(
+  rawWords: string[],
+): Promise<BatchInferenceResult[]> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const lemma = word.lemma.trim();
-  if (!lemma) throw new Error("Word cannot be empty");
+  const capped = rawWords
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0)
+    .slice(0, MAX_BATCH_WORDS);
 
-  await db.insert(words).values({
-    lemma,
-    level: word.level,
-    pos: word.pos,
-    gender: word.gender ?? undefined,
-    source: "manual",
-    userId: user.id,
-  });
+  return Promise.all(
+    capped.map(async (raw) => {
+      try {
+        const suggestion = await inferWordDetails(raw);
+        return { raw, suggestion, error: null };
+      } catch (err) {
+        return {
+          raw,
+          suggestion: null,
+          error: err instanceof Error ? err.message : "Something went wrong",
+        };
+      }
+    }),
+  );
+}
+
+export async function saveWords(words: WordSuggestion[]): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const rows = words
+    .map((w) => ({ ...w, lemma: w.lemma.trim() }))
+    .filter((w) => w.lemma.length > 0)
+    .map((w) => ({
+      lemma: w.lemma,
+      level: w.level,
+      pos: w.pos,
+      gender: w.gender ?? undefined,
+      source: "manual" as const,
+      userId: user.id,
+    }));
+
+  if (rows.length === 0) return;
+  await db.insert(wordsTable).values(rows);
 }

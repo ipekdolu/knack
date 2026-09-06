@@ -22,25 +22,36 @@ export default function VocabPage() {
         </Link>
 
         <Link
-          href="/vocab/add"
+          href="/vocab/difficult"
           className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
         >
-          <p className="font-medium">Add a word</p>
+          <p className="font-medium">Difficult words</p>
           <p className="text-sm text-gray-500">
-            Type a German word and Claude fills in its level, part of speech
-            and gender.
+            Words you&apos;ve starred, or that you consistently miss.
           </p>
         </Link>
 
-        <div className="rounded-lg border border-dashed border-gray-300 p-4 opacity-60">
-          <p className="font-medium">Difficult words</p>
-          <p className="text-sm text-gray-500">Coming soon.</p>
-        </div>
-
-        <div className="rounded-lg border border-dashed border-gray-300 p-4 opacity-60">
+        <Link
+          href="/vocab/speed"
+          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
+        >
           <p className="font-medium">Speed review</p>
-          <p className="text-sm text-gray-500">Coming soon.</p>
-        </div>
+          <p className="text-sm text-gray-500">
+            A timed drill through as many cards as you can. Doesn&apos;t
+            affect your progress tracking.
+          </p>
+        </Link>
+
+        <Link
+          href="/vocab/add"
+          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
+        >
+          <p className="font-medium">Create your own flashcard</p>
+          <p className="text-sm text-gray-500">
+            Write a German word and Claude fills in its level, part of
+            speech, and gender.
+          </p>
+        </Link>
       </div>
     </div>
   );

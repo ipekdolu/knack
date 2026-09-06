@@ -7,6 +7,7 @@ import {
   generateFlashcard,
   generateFillBlank,
   logExerciseResult,
+  toggleWordFlag,
   type SessionWord,
   type ExerciseType,
   type FlashcardContent,
@@ -34,11 +35,19 @@ export default function ExerciseSession({
   // This component backs both a Vocab space (flashcards) and an Activities
   // one (fill-blank), so where "back" goes depends on the caller.
   backHref = "/activities",
+  // Difficult Words reuses this component with its own word pool instead of
+  // the default due+new mix from startSession.
+  loadWords,
+  emptyMessage,
+  showFlagButton = false,
 }: {
   type: ExerciseType;
   title: string;
   showAddWord?: boolean;
   backHref?: string;
+  loadWords?: () => Promise<SessionWord[]>;
+  emptyMessage?: string;
+  showFlagButton?: boolean;
 }) {
   const [queue, setQueue] = useState<SessionWord[]>([]);
   const [index, setIndex] = useState(0);
@@ -46,6 +55,7 @@ export default function ExerciseSession({
   const [selected, setSelected] = useState<string | null>(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [flagging, setFlagging] = useState(false);
 
   // Content is cached by queue index in a ref (not state) so a background
   // prefetch of the *next* card doesn't need to trigger a re-render -- only
@@ -91,19 +101,25 @@ export default function ExerciseSession({
     setPhase("loading");
     contentCache.current = {};
     fetching.current.clear();
-    startSession(type, 10)
+
+    const load = loadWords
+      ? loadWords().then((sessionWords) => ({
+          words: sessionWords,
+          level: sessionWords[0]?.level ?? null,
+        }))
+      : startSession(type);
+
+    load
       .then(({ words: sessionWords, level }) => {
         setQueue(sessionWords);
         setIndex(0);
         setScore({ correct: 0, total: 0 });
-        if (!level) {
+        if (sessionWords.length === 0) {
           setError(
-            "No words available yet -- add a word or wait for the word bank to load.",
-          );
-          setPhase("error");
-        } else if (sessionWords.length === 0) {
-          setError(
-            `No ${level} words available yet. Pick a different level in Settings.`,
+            emptyMessage ??
+              (!level
+                ? "No words available yet -- add a word or wait for the word bank to load."
+                : `No ${level} words available yet. Pick a different level in Settings.`),
           );
           setPhase("error");
         }
@@ -147,6 +163,19 @@ export default function ExerciseSession({
     }
   }
 
+  async function handleToggleFlag() {
+    if (!current || flagging) return;
+    setFlagging(true);
+    try {
+      const nextFlagged = await toggleWordFlag(current.wordId);
+      setQueue((q) =>
+        q.map((w, i) => (i === index ? { ...w, isFlagged: nextFlagged } : w)),
+      );
+    } finally {
+      setFlagging(false);
+    }
+  }
+
   async function handleFlashcardGrade(knewIt: boolean) {
     if (!current) return;
     setScore((s) => ({ correct: s.correct + (knewIt ? 1 : 0), total: s.total + 1 }));
@@ -186,7 +215,7 @@ export default function ExerciseSession({
               href="/vocab/add"
               className="text-sm text-gray-500 hover:underline"
             >
-              + Add a word
+              + Create a flashcard
             </Link>
           )}
         </div>
@@ -231,11 +260,28 @@ export default function ExerciseSession({
               <span>
                 {index + 1} / {queue.length} &middot; {current.level}
               </span>
-              <span
-                className={`rounded-full px-2 py-0.5 font-medium ${STAGE_CLASSES[current.masteryStage]}`}
-              >
-                {STAGE_LABEL[current.masteryStage]}
-              </span>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`rounded-full px-2 py-0.5 font-medium ${STAGE_CLASSES[current.masteryStage]}`}
+                >
+                  {STAGE_LABEL[current.masteryStage]}
+                </span>
+                {showFlagButton && (
+                  <button
+                    type="button"
+                    onClick={handleToggleFlag}
+                    disabled={flagging}
+                    aria-label={
+                      current.isFlagged
+                        ? "Unmark as difficult"
+                        : "Mark as difficult"
+                    }
+                    className={`text-lg leading-none ${current.isFlagged ? "text-amber-500" : "text-gray-300 hover:text-amber-500"}`}
+                  >
+                    {current.isFlagged ? "★" : "☆"}
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-gray-300 p-6 text-center">
               <p className="text-2xl font-semibold">

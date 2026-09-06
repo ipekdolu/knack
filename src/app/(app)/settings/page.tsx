@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getAvailableLevels } from "@/lib/practice/actions";
-import { getPreferredLevel } from "./actions";
+import { getPreferredLevel, getCardsPerSession } from "./actions";
 import LevelPicker from "./level-picker";
+import CardsPerSessionPicker from "./cards-per-session-picker";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -15,9 +16,10 @@ export default async function SettingsPage() {
     redirect("/login");
   }
 
-  const [levels, preferredLevel] = await Promise.all([
+  const [levels, preferredLevel, cardsPerSession] = await Promise.all([
     getAvailableLevels(),
     getPreferredLevel(),
+    getCardsPerSession(),
   ]);
 
   return (
@@ -33,6 +35,13 @@ export default async function SettingsPage() {
 
         <div className="mt-4">
           <LevelPicker levels={levels} initialLevel={preferredLevel} />
+        </div>
+
+        <h2 className="mt-6 text-sm font-medium text-gray-700">
+          Cards per session
+        </h2>
+        <div className="mt-2">
+          <CardsPerSessionPicker initialCount={cardsPerSession} />
         </div>
       </div>
     </div>

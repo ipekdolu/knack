@@ -7,6 +7,7 @@ export default function VocabReviewPage() {
       title="Review"
       backHref="/vocab"
       showAddWord
+      showFlagButton
     />
   );
 }

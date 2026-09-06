@@ -39,3 +39,27 @@ export async function setPreferredLevel(level: string): Promise<void> {
       set: { preferredLevel: level as Level, updatedAt: now },
     });
 }
+
+export async function getCardsPerSession(): Promise<number | null> {
+  const user = await requireUser();
+
+  const [row] = await db
+    .select({ cardsPerSession: userSettings.cardsPerSession })
+    .from(userSettings)
+    .where(eq(userSettings.userId, user.id));
+
+  return row?.cardsPerSession ?? null;
+}
+
+export async function setCardsPerSession(count: number): Promise<void> {
+  const user = await requireUser();
+  const now = new Date();
+
+  await db
+    .insert(userSettings)
+    .values({ userId: user.id, cardsPerSession: count, updatedAt: now })
+    .onConflictDoUpdate({
+      target: userSettings.userId,
+      set: { cardsPerSession: count, updatedAt: now },
+    });
+}
