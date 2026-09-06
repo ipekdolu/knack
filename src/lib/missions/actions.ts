@@ -9,60 +9,56 @@ type MissionCatalogEntry = {
   type: string;
   label: string;
   targetCount: number;
-  points: number;
   // Which exercise_log.exercise_type values count toward this mission.
   exerciseTypes: string[];
 };
 
-// Points roughly track effort: a 10-word flashcard review is quick, a
-// speaking exercise takes the most doing, writing/reading/scenario sit in
-// between. Three of these are drawn at random each day.
+// Flat 10 points per mission, 2 missions a day -- deliberately small and
+// uniform so this stays a light touch rather than a system to optimize.
+// At 20 points/day it takes 2-3 days to afford a streak repair (50 points),
+// which is the point: a genuine catch-up, not a same-day undo.
+const MISSION_POINTS = 10;
+
 const MISSION_CATALOG: MissionCatalogEntry[] = [
   {
     type: "review_x10",
     label: "Review 10 flashcards",
     targetCount: 10,
-    points: 5,
     exerciseTypes: ["flashcard"],
   },
   {
     type: "fill_blank_x5",
     label: "Answer 5 fill-in-the-blank exercises",
     targetCount: 5,
-    points: 10,
     exerciseTypes: ["fill_blank"],
   },
   {
     type: "sentence_x2",
     label: "Write 2 practice sentences",
     targetCount: 2,
-    points: 15,
     exerciseTypes: ["sentence"],
   },
   {
     type: "scenario_x1",
     label: "Complete a scenario writing exercise",
     targetCount: 1,
-    points: 15,
     exerciseTypes: ["scenario"],
   },
   {
     type: "reading_x1",
     label: "Complete a reading exercise",
     targetCount: 1,
-    points: 15,
     exerciseTypes: ["reading"],
   },
   {
     type: "speaking_x1",
     label: "Complete a speaking exercise",
     targetCount: 1,
-    points: 20,
     exerciseTypes: ["speaking_read", "speaking_prompt"],
   },
 ];
 
-const MISSIONS_PER_DAY = 3;
+const MISSIONS_PER_DAY = 2;
 const STREAK_REPAIR_COST = 50;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -85,7 +81,7 @@ function dayKeyOffset(daysAgo: number): string {
   return new Date(utcMidnight - daysAgo * DAY_MS).toISOString().slice(0, 10);
 }
 
-function pickThree(): MissionCatalogEntry[] {
+function pickMissions(): MissionCatalogEntry[] {
   const shuffled = [...MISSION_CATALOG].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, MISSIONS_PER_DAY);
 }
@@ -117,7 +113,7 @@ export async function getTodayMissions(): Promise<MissionsSummary> {
     .where(and(eq(dailyMissions.userId, user.id), eq(dailyMissions.date, date)));
 
   if (rows.length === 0) {
-    const picks = pickThree();
+    const picks = pickMissions();
     await db
       .insert(dailyMissions)
       .values(
@@ -126,7 +122,7 @@ export async function getTodayMissions(): Promise<MissionsSummary> {
           date,
           missionType: p.type,
           targetCount: p.targetCount,
-          pointsAwarded: p.points,
+          pointsAwarded: MISSION_POINTS,
         })),
       )
       .onConflictDoNothing();
