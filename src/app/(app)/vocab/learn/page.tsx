@@ -8,7 +8,7 @@ export default function StartLearningPage() {
       title="Start learning"
       backHref="/vocab"
       showFlagButton
-      loadWords={() => getNewWords()}
+      loadWords={getNewWords}
       emptyMessage="No new words left at your level -- nice work. Try a different level in Settings, or head to Review."
     />
   );

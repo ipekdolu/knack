@@ -8,7 +8,7 @@ export default function DifficultWordsPage() {
       title="Difficult words"
       backHref="/vocab"
       showFlagButton
-      loadWords={() => getDifficultWords(20)}
+      loadWords={getDifficultWords}
       emptyMessage="No difficult words yet -- star a card during Review, or keep practicing and this fills in automatically."
     />
   );
