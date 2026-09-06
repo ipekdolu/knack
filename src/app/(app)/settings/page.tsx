@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getAvailableLevels } from "../practice/actions";
+import { getAvailableLevels } from "@/lib/practice/actions";
 import { getPreferredLevel } from "./actions";
 import LevelPicker from "./level-picker";
 
@@ -21,9 +21,9 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
-      <div className="w-full max-w-sm">
-        <Link href="/" className="text-sm text-gray-500 hover:underline">
+    <div className="flex flex-col gap-6">
+      <div className="mx-auto w-full max-w-sm">
+        <Link href="/home" className="text-sm text-gray-500 hover:underline">
           &larr; Back
         </Link>
         <h1 className="mt-2 text-xl font-semibold">Settings</h1>

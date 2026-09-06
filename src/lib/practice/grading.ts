@@ -3,7 +3,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/db";
 import { exerciseLog } from "@/db/schema";
-import { requireUser, applyProgressUpdate } from "../shared";
+import { requireUser, applyProgressUpdate } from "./shared";
 
 export type TargetWord = {
   wordId: string;

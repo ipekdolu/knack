@@ -11,7 +11,7 @@ import {
   type ExerciseType,
   type FlashcardContent,
   type FillBlankContent,
-} from "./actions";
+} from "@/lib/practice/actions";
 
 type Phase = "loading" | "front" | "result" | "complete" | "error";
 type Content = FlashcardContent | FillBlankContent;
@@ -31,10 +31,14 @@ export default function ExerciseSession({
   type,
   title,
   showAddWord = false,
+  // This component backs both a Vocab space (flashcards) and an Activities
+  // one (fill-blank), so where "back" goes depends on the caller.
+  backHref = "/activities",
 }: {
   type: ExerciseType;
   title: string;
   showAddWord?: boolean;
+  backHref?: string;
 }) {
   const [queue, setQueue] = useState<SessionWord[]>([]);
   const [index, setIndex] = useState(0);
@@ -171,15 +175,15 @@ export default function ExerciseSession({
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
-      <div className="w-full max-w-md">
+    <div className="flex flex-col gap-6">
+      <div className="mx-auto w-full max-w-md">
         <div className="flex items-center justify-between">
-          <Link href="/practice" className="text-sm text-gray-500 hover:underline">
+          <Link href={backHref} className="text-sm text-gray-500 hover:underline">
             &larr; Back
           </Link>
           {showAddWord && (
             <Link
-              href="/words/add"
+              href="/vocab/add"
               className="text-sm text-gray-500 hover:underline"
             >
               + Add a word
@@ -352,7 +356,7 @@ export default function ExerciseSession({
             </p>
             <div className="flex gap-2">
               <Link
-                href="/"
+                href="/home"
                 className="flex-1 rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
               >
                 Home

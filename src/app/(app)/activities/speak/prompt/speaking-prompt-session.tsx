@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { startSession, type SessionWord } from "../../actions";
-import { chunkWords } from "../../chunk";
+import { startSession, type SessionWord } from "@/lib/practice/actions";
+import { chunkWords } from "@/lib/practice/chunk";
 import {
   gradeSentence,
   logSentenceResult,
   type SentenceGrade,
-} from "../../write/actions";
+} from "@/lib/practice/grading";
 import { generateSpeakingPrompt, type SpeakingPrompt } from "../actions";
-import { useSpeechRecognition } from "../use-speech-recognition";
+import { useSpeechRecognition } from "@/lib/speech/use-speech-recognition";
 
 type Phase = "loading" | "prompt" | "grading" | "result" | "complete" | "error";
 
@@ -138,9 +138,9 @@ export default function SpeakingPromptSession() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
-      <div className="w-full max-w-md">
-        <Link href="/practice" className="text-sm text-gray-500 hover:underline">
+    <div className="flex flex-col gap-6">
+      <div className="mx-auto w-full max-w-md">
+        <Link href="/activities" className="text-sm text-gray-500 hover:underline">
           &larr; Back
         </Link>
         <h1 className="mt-2 text-xl font-semibold">Speaking Prompt</h1>
@@ -317,7 +317,7 @@ export default function SpeakingPromptSession() {
             </p>
             <div className="flex gap-2">
               <Link
-                href="/"
+                href="/home"
                 className="flex-1 rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
               >
                 Home

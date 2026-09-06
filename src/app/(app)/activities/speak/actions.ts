@@ -1,7 +1,7 @@
 "use server";
 
 import Anthropic from "@anthropic-ai/sdk";
-import { requireUser } from "../shared";
+import { requireUser } from "@/lib/practice/shared";
 
 export type SpeakingPrompt = {
   question: string;

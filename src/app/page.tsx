@@ -1,104 +1,58 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getDashboardStats } from "./practice/actions";
-import LogoutButton from "./logout-button";
 
-export default async function Home() {
+const FEATURES = [
+  {
+    title: "Flashcards that know what you forgot",
+    body: "Words come back on a schedule based on how well you actually knew them, not a fixed loop.",
+  },
+  {
+    title: "Practice using words, not just recognizing them",
+    body: "Fill in the blank, write a sentence, or answer a question out loud -- each one graded with specific feedback.",
+  },
+  {
+    title: "Built on the Goethe-Institut A1-B1 word lists",
+    body: "Around 3,000 words, sorted by level, plus anything you add yourself.",
+  },
+];
+
+export default async function LandingPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login");
+  // Signed-in visitors have no use for the pitch -- send them to the app.
+  if (user) {
+    redirect("/home");
   }
 
-  const stats = await getDashboardStats();
-
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
-      <div className="w-full max-w-sm">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500">{user.email}</p>
-          <div className="flex items-center gap-3">
-            <Link href="/settings" className="text-sm text-gray-500 hover:underline">
-              Settings
-            </Link>
-            <LogoutButton />
-          </div>
-        </div>
-
-        <h1 className="mt-4 text-xl font-semibold">Your progress</h1>
-
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <div className="rounded-lg border border-gray-300 p-4">
-            <p className="text-2xl font-semibold">{stats.totalExercises}</p>
-            <p className="text-sm text-gray-500">Exercises done</p>
-          </div>
-          <div className="rounded-lg border border-gray-300 p-4">
-            <p className="text-2xl font-semibold">
-              {stats.accuracyPct !== null ? `${stats.accuracyPct}%` : "—"}
-            </p>
-            <p className="text-sm text-gray-500">Accuracy</p>
-          </div>
-          <div className="rounded-lg border border-gray-300 p-4">
-            <p className="text-2xl font-semibold">{stats.wordsPracticed}</p>
-            <p className="text-sm text-gray-500">Words practiced</p>
-          </div>
-          <div className="rounded-lg border border-gray-300 p-4">
-            <p className="text-2xl font-semibold">{stats.streak}</p>
-            <p className="text-sm text-gray-500">Day streak</p>
-          </div>
-        </div>
-
-        <div className="mt-3 rounded-lg border border-gray-300 p-4">
-          <p className="font-medium">Mastery breakdown</p>
-          {(() => {
-            const { new: newCount, learning, mastered } = stats.mastery;
-            const total = newCount + learning + mastered || 1;
-            return (
-              <>
-                <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-gray-100">
-                  <div
-                    className="bg-gray-400"
-                    style={{ width: `${(newCount / total) * 100}%` }}
-                  />
-                  <div
-                    className="bg-amber-400"
-                    style={{ width: `${(learning / total) * 100}%` }}
-                  />
-                  <div
-                    className="bg-green-500"
-                    style={{ width: `${(mastered / total) * 100}%` }}
-                  />
-                </div>
-                <div className="mt-2 flex justify-between text-sm text-gray-500">
-                  <span>New: {newCount}</span>
-                  <span>Learning: {learning}</span>
-                  <span>Mastered: {mastered}</span>
-                </div>
-              </>
-            );
-          })()}
-        </div>
-
-        <div className="mt-6 flex flex-col gap-2">
-          {stats.level && (
-            <p className="text-center text-sm text-gray-500">
-              {stats.dueToday > 0
-                ? `${stats.dueToday} word${stats.dueToday === 1 ? "" : "s"} due today`
-                : "No words due today"}{" "}
-              &middot; Level {stats.level}
-            </p>
-          )}
+    <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-10 p-6">
+      <div className="flex flex-col gap-4">
+        <h1 className="text-3xl font-semibold">German Vocab Practice</h1>
+        <p className="text-lg text-gray-600">
+          Learn German vocabulary by using it -- reading, writing and speaking
+          real sentences, with feedback on each one.
+        </p>
+        <div>
           <Link
-            href="/practice"
-            className="rounded-md bg-black px-4 py-2 text-center text-white hover:bg-gray-800"
+            href="/login"
+            className="inline-block rounded-md bg-black px-5 py-2.5 text-white hover:bg-gray-800"
           >
-            Start today&apos;s practice
+            Sign in with Google
           </Link>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {FEATURES.map((feature) => (
+          <div key={feature.title} className="rounded-lg border border-gray-300 p-4">
+            <p className="font-medium">{feature.title}</p>
+            <p className="mt-1 text-sm text-gray-500">{feature.body}</p>
+          </div>
+        ))}
       </div>
     </div>
   );

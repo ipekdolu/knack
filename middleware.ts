@@ -1,7 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth"];
+// Prefix-matched, so "/auth" also covers "/auth/callback".
+const PUBLIC_PREFIXES = ["/login", "/auth"];
+// The landing page is public, but only at exactly "/" -- prefix-matching it
+// would make every route in the app public.
+const PUBLIC_EXACT = ["/"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -31,9 +35,10 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isPublicPath = PUBLIC_PATHS.some((path) =>
-    request.nextUrl.pathname.startsWith(path),
-  );
+  const { pathname } = request.nextUrl;
+  const isPublicPath =
+    PUBLIC_EXACT.includes(pathname) ||
+    PUBLIC_PREFIXES.some((path) => pathname.startsWith(path));
 
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone();

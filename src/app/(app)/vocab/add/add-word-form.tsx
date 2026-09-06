@@ -63,9 +63,9 @@ export default function AddWordForm() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
-      <div className="w-full max-w-sm">
-        <Link href="/" className="text-sm text-gray-500 hover:underline">
+    <div className="flex flex-col gap-6">
+      <div className="mx-auto w-full max-w-sm">
+        <Link href="/vocab" className="text-sm text-gray-500 hover:underline">
           &larr; Back
         </Link>
         <h1 className="mt-2 text-xl font-semibold">Add a word</h1>

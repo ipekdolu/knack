@@ -8,9 +8,9 @@ import {
   logExerciseResult,
   type SessionWord,
   type FlashcardContent,
-} from "../../actions";
-import { useSpeechRecognition } from "../use-speech-recognition";
-import { matchTranscript, type MatchResult } from "../match";
+} from "@/lib/practice/actions";
+import { useSpeechRecognition } from "@/lib/speech/use-speech-recognition";
+import { matchTranscript, type MatchResult } from "@/lib/practice/match";
 
 type Phase = "loading" | "prompt" | "result" | "complete" | "error";
 
@@ -130,9 +130,9 @@ export default function ReadAloudSession() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
-      <div className="w-full max-w-md">
-        <Link href="/practice" className="text-sm text-gray-500 hover:underline">
+    <div className="flex flex-col gap-6">
+      <div className="mx-auto w-full max-w-md">
+        <Link href="/activities" className="text-sm text-gray-500 hover:underline">
           &larr; Back
         </Link>
         <h1 className="mt-2 text-xl font-semibold">Read Aloud</h1>
@@ -280,7 +280,7 @@ export default function ReadAloudSession() {
             </p>
             <div className="flex gap-2">
               <Link
-                href="/"
+                href="/home"
                 className="flex-1 rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
               >
                 Home
