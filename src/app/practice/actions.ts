@@ -13,7 +13,12 @@ import {
   type MasteryStage,
 } from "./shared";
 
-export type ExerciseType = "flashcard" | "fill_blank" | "sentence";
+export type ExerciseType =
+  | "flashcard"
+  | "fill_blank"
+  | "sentence"
+  | "speaking_read"
+  | "speaking_prompt";
 
 export type SessionWord = {
   wordId: string;

@@ -29,9 +29,17 @@ export type SentenceGrade = {
   allCorrect: boolean;
 };
 
+export type GradeOptions = {
+  /** The question the learner was answering, when there was one. */
+  prompt?: string;
+  /** True when the text came from speech-to-text rather than a keyboard. */
+  spoken?: boolean;
+};
+
 export async function gradeSentence(
   words: TargetWord[],
   userSentence: string,
+  options: GradeOptions = {},
 ): Promise<SentenceGrade> {
   await requireUser();
 
@@ -50,11 +58,19 @@ export async function gradeSentence(
     messages: [
       {
         role: "user",
-        content: `A learner at approximately CEFR level ${levels} was asked to write one German sentence using all of these target words: ${wordList}.
+        content: `A learner at approximately CEFR level ${levels} was asked to ${
+          options.prompt
+            ? `answer this question in German using all of these target words: ${wordList}.\n\nThe question: "${options.prompt}"`
+            : `write one German sentence using all of these target words: ${wordList}.`
+        }
 
-Their sentence: "${userSentence}"
-
-For each target word, judge whether it appears in the sentence used correctly (present, correctly inflected/conjugated for its role, and used with its expected meaning). In word_results, set "lemma" to exactly one of these strings, with no article and no other formatting: ${bareLemmas.map((l) => `"${l}"`).join(", ")}. Note any grammar issues in the sentence more broadly (word order, case, conjugation, agreement, etc); return an empty array if there are none. Judge whether the sentence is appropriate for a learner at level ${levels} -- set level_appropriate to false only if it's notably below the level (trivially simple for the words involved) or reaches well beyond it in a way that produced errors, and in that case give a one-sentence level_note explaining why. Give brief, encouraging, specific feedback (1-2 sentences, in English). Provide a corrected or improved version of the sentence in German -- return the sentence unchanged if it's already good. Call the grade_sentence tool with your answer.`,
+Their ${options.spoken ? "spoken answer, as transcribed by speech recognition" : "sentence"}: "${userSentence}"
+${
+  options.spoken
+    ? "\nThis is a speech-to-text transcript, so it has no punctuation and unreliable capitalization, and the recognizer may have garbled a word. Judge only the spoken German -- never report missing punctuation, lowercase nouns, or an obvious transcription artifact as a mistake.\n"
+    : ""
+}
+For each target word, judge whether it appears in the sentence used correctly (present, correctly inflected/conjugated for its role, and used with its expected meaning). In word_results, set "lemma" to exactly one of these strings, with no article and no other formatting: ${bareLemmas.map((l) => `"${l}"`).join(", ")}. Note any grammar issues in the sentence more broadly (word order, case, conjugation, agreement, etc); return an empty array if there are none. Judge whether the sentence is appropriate for a learner at level ${levels} -- set level_appropriate to false only if it's notably below the level (trivially simple for the words involved) or reaches well beyond it in a way that produced errors, and in that case give a one-sentence level_note, in English, explaining why. Give brief, encouraging, specific feedback (1-2 sentences, in English). Provide a corrected or improved version of the sentence in German -- return the sentence unchanged if it's already good. Call the grade_sentence tool with your answer.`,
       },
     ],
     tools: [
@@ -151,6 +167,8 @@ For each target word, judge whether it appears in the sentence used correctly (p
 export async function logSentenceResult(entry: {
   grade: SentenceGrade;
   userResponse: string;
+  /** Written practice by default; spoken answers log under their own type. */
+  exerciseType?: "sentence" | "speaking_prompt";
 }): Promise<void> {
   const user = await requireUser();
   const { grade } = entry;
@@ -174,7 +192,7 @@ export async function logSentenceResult(entry: {
     await tx.insert(exerciseLog).values({
       userId: user.id,
       wordIds: grade.wordResults.map((r) => r.wordId),
-      exerciseType: "sentence",
+      exerciseType: entry.exerciseType ?? "sentence",
       userResponse: entry.userResponse,
       score: grade.allCorrect ? 1 : 0,
       feedback,

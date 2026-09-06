@@ -52,6 +52,26 @@ export default async function PracticeHubPage() {
             </p>
           </Link>
 
+          <Link
+            href="/practice/speak/read"
+            className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
+          >
+            <p className="font-medium">Read aloud</p>
+            <p className="text-sm text-gray-500">
+              Say a sentence out loud and see how much was heard correctly.
+            </p>
+          </Link>
+
+          <Link
+            href="/practice/speak/prompt"
+            className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
+          >
+            <p className="font-medium">Speaking prompt</p>
+            <p className="text-sm text-gray-500">
+              Answer a question out loud using a few target words.
+            </p>
+          </Link>
+
           <div className="rounded-lg border border-dashed border-gray-300 p-4 opacity-60">
             <p className="font-medium">Scenario practice</p>
             <p className="text-sm text-gray-500">Coming soon.</p>

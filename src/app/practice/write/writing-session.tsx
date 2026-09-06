@@ -3,23 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { startSession, type SessionWord } from "../actions";
+import { chunkWords } from "../chunk";
 import { gradeSentence, logSentenceResult, type SentenceGrade } from "./actions";
 
 type Phase = "loading" | "prompt" | "grading" | "result" | "complete" | "error";
-
-// Chunks the session's words into prompts of 2-3 words each, avoiding a
-// lonely leftover of 1 (splits a remainder of 4 into 2+2 rather than 3+1).
-function chunkWords(words: SessionWord[]): SessionWord[][] {
-  const groups: SessionWord[][] = [];
-  let i = 0;
-  while (i < words.length) {
-    const remaining = words.length - i;
-    const size = remaining <= 3 ? remaining : remaining === 4 ? 2 : 3;
-    groups.push(words.slice(i, i + size));
-    i += size;
-  }
-  return groups;
-}
 
 export default function WritingSession() {
   const [groups, setGroups] = useState<SessionWord[][]>([]);
