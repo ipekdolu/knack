@@ -5,8 +5,11 @@ import {
   uuid,
   text,
   integer,
+  boolean,
+  jsonb,
   timestamp,
   unique,
+  index,
 } from "drizzle-orm/pg-core";
 
 // Supabase Auth manages this table; we only reference it for foreign keys.
@@ -62,6 +65,8 @@ export const userWordProgress = pgTable(
     correctStreak: integer("correct_streak").notNull().default(0),
     timesSeen: integer("times_seen").notNull().default(0),
     timesCorrect: integer("times_correct").notNull().default(0),
+    // User-starred as difficult; unions with the auto low-accuracy pool.
+    isFlagged: boolean("is_flagged").notNull().default(false),
   },
   (table) => [unique().on(table.userId, table.wordId)],
 );
@@ -71,10 +76,35 @@ export const userSettings = pgTable("user_settings", {
     .primaryKey()
     .references(() => authUsers.id),
   preferredLevel: levelEnum("preferred_level"),
+  cardsPerSession: integer("cards_per_session"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
+
+export const wordContentKindEnum = pgEnum("word_content_kind", [
+  "flashcard",
+  "fill_blank",
+]);
+
+// Generated exercise content, cached per word so repeat reviews don't
+// regenerate identical material. Several rows per (word, kind) form a small
+// variant pool, so a word you see often doesn't always show the same sentence.
+export const wordContent = pgTable(
+  "word_content",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    wordId: uuid("word_id")
+      .notNull()
+      .references(() => words.id, { onDelete: "cascade" }),
+    kind: wordContentKindEnum("kind").notNull(),
+    content: jsonb("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("word_content_word_kind_idx").on(table.wordId, table.kind)],
+);
 
 export const exerciseLog = pgTable("exercise_log", {
   id: uuid("id").primaryKey().defaultRandom(),
