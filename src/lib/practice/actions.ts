@@ -3,7 +3,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { or, eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { words, exerciseLog, userWordProgress, userSettings } from "@/db/schema";
+import {
+  words,
+  exerciseLog,
+  userWordProgress,
+  userSettings,
+  streakRepairs,
+} from "@/db/schema";
 import {
   requireUser,
   shuffle,
@@ -399,7 +405,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const practiceDays = await db.execute<{ day: string }>(
     sql`select distinct to_char(${exerciseLog.createdAt} at time zone 'utc', 'YYYY-MM-DD') as day from exercise_log where user_id = ${user.id}`,
   );
-  const streak = computeStreak(new Set(practiceDays.map((r) => r.day)));
+  const repairedDays = await db
+    .select({ date: streakRepairs.date })
+    .from(streakRepairs)
+    .where(eq(streakRepairs.userId, user.id));
+  const activeDays = new Set(practiceDays.map((r) => r.day));
+  for (const r of repairedDays) activeDays.add(r.date);
+  const streak = computeStreak(activeDays);
 
   return {
     totalExercises: agg?.totalExercises ?? 0,

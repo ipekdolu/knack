@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { getDashboardStats } from "@/lib/practice/actions";
+import { getTodayMissions } from "@/lib/missions/actions";
 
 export default async function HomePage() {
-  const stats = await getDashboardStats();
+  const [stats, missionsSummary] = await Promise.all([
+    getDashboardStats(),
+    getTodayMissions(),
+  ]);
   const { new: newCount, learning, mastered } = stats.mastery;
   const masteryTotal = newCount + learning + mastered || 1;
 
@@ -74,11 +78,34 @@ export default async function HomePage() {
       </section>
 
       <section>
-        <h2 className="font-medium">Today&apos;s missions</h2>
-        <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">
-          Daily missions and points are coming soon. They&apos;ll show up here
-          once built.
+        <div className="flex items-center justify-between">
+          <h2 className="font-medium">Today&apos;s missions</h2>
+          <span className="text-sm font-medium text-gray-500">
+            {missionsSummary.pointsBalance} points
+          </span>
         </div>
+        <div className="mt-2 flex flex-col gap-2">
+          {missionsSummary.missions.map((m) => (
+            <div
+              key={m.id}
+              className="flex items-center justify-between rounded-lg border border-gray-300 p-3 text-sm"
+            >
+              <span className={m.completed ? "text-green-700" : ""}>
+                {m.completed ? "✓ " : ""}
+                {m.label}
+              </span>
+              <span className="text-gray-500">
+                {m.completed ? `+${m.points}` : `${m.progressCount}/${m.targetCount}`}
+              </span>
+            </div>
+          ))}
+        </div>
+        <Link
+          href="/missions"
+          className="mt-2 inline-block text-sm text-gray-500 hover:underline"
+        >
+          View missions &rarr;
+        </Link>
       </section>
     </div>
   );

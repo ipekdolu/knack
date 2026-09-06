@@ -119,12 +119,12 @@ At end of Phase 6 the engine works but everything lives on one page. These phase
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
-| ⬜ | Vocab landing: entry to flashcard modes | P0 | |
-| ⬜ | Review (flashcards for words due / in rotation) | P0 | |
-| ⬜ | Difficult Words pool (auto low-accuracy + manually flagged) | P1 | Add `is_flagged` boolean to `user_word_progress`; star button on cards |
-| ⬜ | Speed Review (fast, timed flip-through) | P1 | |
-| ⬜ | Custom flashcard creation | P1 | Ties into existing manual word-add |
-| ⬜ | User control: how many cards per session | P2 | |
+| ✅ | Vocab landing: entry to flashcard modes | P0 | |
+| ✅ | Review (flashcards for words due / in rotation) | P0 | |
+| ✅ | Difficult Words pool (auto low-accuracy + manually flagged) | P1 | Add `is_flagged` boolean to `user_word_progress`; star button on cards |
+| ✅ | Speed Review (fast, timed flip-through) | P1 | |
+| ✅ | Custom flashcard creation | P1 | Ties into existing manual word-add |
+| ✅ | User control: how many cards per session | P2 | |
 
 ## Phase 10 — Activities Space + Reading
 
@@ -139,11 +139,11 @@ At end of Phase 6 the engine works but everything lives on one page. These phase
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
-| ⬜ | `daily_missions` + `user_points` schema | P0 | See data model additions |
-| ⬜ | Generate a fixed set of daily missions per user (e.g. 3) | P0 | Cap makes points un-farmable |
-| ⬜ | Track mission completion, award points | P0 | |
-| ⬜ | Points balance display (Home / Missions page) | P1 | |
-| ⬜ | Spend points to repair/extend streak (priced as genuine catch-up, not free pass) | P1 | The one point-sink for now |
+| ✅ | `daily_missions` + `user_points` schema | P0 | See data model additions |
+| ✅ | Generate a fixed set of daily missions per user (e.g. 3) | P0 | Cap makes points un-farmable |
+| ✅ | Track mission completion, award points | P0 | |
+| ✅ | Points balance display (Home / Missions page) | P1 | |
+| ✅ | Spend points to repair/extend streak (priced as genuine catch-up, not free pass) | P1 | The one point-sink for now |
 | ⬜ | (Future) additional point sinks: cosmetics, XP levels | P2 | Noted, not built |
 
 ## Phase 12 — Production Readiness & Polish (was Phase 7)

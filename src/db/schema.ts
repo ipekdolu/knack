@@ -8,6 +8,7 @@ import {
   boolean,
   jsonb,
   timestamp,
+  date,
   unique,
   index,
 } from "drizzle-orm/pg-core";
@@ -121,3 +122,55 @@ export const exerciseLog = pgTable("exercise_log", {
     .notNull()
     .defaultNow(),
 });
+
+// One row per (user, day, mission type). Generated on first visit each day
+// from a fixed-size catalog pick, so points can't be farmed by repeating an
+// exercise type indefinitely.
+export const dailyMissions = pgTable(
+  "daily_missions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUsers.id),
+    date: date("date", { mode: "string" }).notNull(),
+    missionType: text("mission_type").notNull(),
+    targetCount: integer("target_count").notNull(),
+    progressCount: integer("progress_count").notNull().default(0),
+    completed: boolean("completed").notNull().default(false),
+    pointsAwarded: integer("points_awarded").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.userId, table.date, table.missionType)],
+);
+
+export const userPoints = pgTable("user_points", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => authUsers.id),
+  balance: integer("balance").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Dates a user has spent points to backfill after missing exactly one day.
+// Kept separate from exercise_log (rather than inserting a fake row there)
+// so streak math can treat the day as active without polluting exercise
+// counts or accuracy stats.
+export const streakRepairs = pgTable(
+  "streak_repairs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUsers.id),
+    date: date("date", { mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.userId, table.date)],
+);
