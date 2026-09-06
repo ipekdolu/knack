@@ -18,8 +18,10 @@ export type ExerciseType =
   | "flashcard"
   | "fill_blank"
   | "sentence"
+  | "scenario"
   | "speaking_read"
-  | "speaking_prompt";
+  | "speaking_prompt"
+  | "reading";
 
 export type SessionWord = {
   wordId: string;

@@ -33,6 +33,7 @@ export const exerciseTypeEnum = pgEnum("exercise_type", [
   "scenario",
   "speaking_read",
   "speaking_prompt",
+  "reading",
 ]);
 
 export const words = pgTable("words", {

@@ -130,10 +130,10 @@ At end of Phase 6 the engine works but everything lives on one page. These phase
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
-| ⬜ | Activities landing: pick exercise type (fill-blank, sentence, scenario, speaking) | P0 | Surfaces the exercises already built in earlier phases |
-| ⬜ | Scenario/passage writing (e.g. "write a complaint email") + richer grading (tone, structure, not just word usage) | P1 | Moved here from Phase 5 — never built; the Activities landing above expects it |
-| ⬜ | **Reading exercise (NEW)**: Claude generates a short level-appropriate passage seeded with target words → comprehension check / word identification | P1 | Reuses existing generation + grading engine; add `reading` to exercise_type enum |
-| ⬜ | Store reading results in `exercise_log` | P1 | |
+| ✅ | Activities landing: pick exercise type (fill-blank, sentence, scenario, speaking) | P0 | Surfaces the exercises already built in earlier phases |
+| ✅ | Scenario/passage writing (e.g. "write a complaint email") + richer grading (tone, structure, not just word usage) | P1 | Moved here from Phase 5 — never built; the Activities landing above expects it |
+| ✅ | **Reading exercise (NEW)**: Claude generates a short level-appropriate passage seeded with target words → comprehension check / word identification | P1 | Reuses existing generation + grading engine; add `reading` to exercise_type enum |
+| ✅ | Store reading results in `exercise_log` | P1 | |
 
 ## Phase 11 — Missions & Points (simple)
 

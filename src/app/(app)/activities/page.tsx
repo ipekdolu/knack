@@ -51,15 +51,27 @@ export default function ActivitiesPage() {
           </p>
         </Link>
 
-        <div className="rounded-lg border border-dashed border-gray-300 p-4 opacity-60">
+        <Link
+          href="/activities/scenario"
+          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
+        >
           <p className="font-medium">Scenario writing</p>
-          <p className="text-sm text-gray-500">Coming soon.</p>
-        </div>
+          <p className="text-sm text-gray-500">
+            Respond to a real-world scenario in German. Graded on tone and
+            structure, not just vocabulary.
+          </p>
+        </Link>
 
-        <div className="rounded-lg border border-dashed border-gray-300 p-4 opacity-60">
+        <Link
+          href="/activities/read"
+          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
+        >
           <p className="font-medium">Reading</p>
-          <p className="text-sm text-gray-500">Coming soon.</p>
-        </div>
+          <p className="text-sm text-gray-500">
+            Read a short passage, then answer comprehension questions and
+            spot the target words.
+          </p>
+        </Link>
       </div>
     </div>
   );
