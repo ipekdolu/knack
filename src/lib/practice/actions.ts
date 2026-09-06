@@ -275,6 +275,62 @@ export async function getNewWords(count?: number): Promise<SessionWord[]> {
   }));
 }
 
+// Level practice: a pure random sample of every word at the user's level,
+// seen or not -- deliberately ignores user_word_progress for *selection*
+// (still left-joined so the UI can show an accurate mastery badge). This is
+// what stops fill-blank/reading from being answerable by recognizing a
+// word the learner has drilled a hundred times; "My words" (startSession)
+// stays the recognition-friendly, SRS-anchored mode.
+export async function getLevelPracticeWords(
+  type: ExerciseType,
+  count?: number,
+): Promise<SessionResult> {
+  const user = await requireUser();
+  const level = await getEffectiveLevel(user.id);
+  if (!level) return { words: [], level: null };
+
+  if (count === undefined) {
+    const [settingsRow] = await db
+      .select({ cardsPerSession: userSettings.cardsPerSession })
+      .from(userSettings)
+      .where(eq(userSettings.userId, user.id));
+    count = settingsRow?.cardsPerSession ?? DEFAULT_SESSION_SIZE;
+  }
+
+  const rows = await db
+    .select(sessionWordCols)
+    .from(words)
+    .leftJoin(
+      userWordProgress,
+      and(
+        eq(userWordProgress.wordId, words.id),
+        eq(userWordProgress.userId, user.id),
+      ),
+    )
+    .where(
+      and(
+        or(eq(words.source, "seed"), eq(words.userId, user.id)),
+        eq(words.level, level as Level),
+      ),
+    )
+    .orderBy(sql`random()`)
+    .limit(count);
+
+  return {
+    words: rows.map((row) => ({
+      wordId: row.id,
+      lemma: row.lemma,
+      level: row.level,
+      pos: row.pos,
+      gender: row.gender,
+      type,
+      masteryStage: row.masteryStage ?? "new",
+      isFlagged: row.isFlagged ?? false,
+    })),
+    level,
+  };
+}
+
 // Difficult pool: manually flagged OR auto-flagged by weak accuracy (at
 // least 3 attempts and under 50% correct). Manual flags surface regardless
 // of accuracy -- the point is user judgment can override the average.
@@ -530,7 +586,14 @@ async function callFillBlankModel(word: {
     messages: [
       {
         role: "user",
-        content: `Write a fill-in-the-blank exercise for the German ${word.pos} "${wordDesc}" at CEFR level ${word.level}. Write a natural German sentence at this level that uses the word (inflected/conjugated as natural for the sentence), then replace that word with the exact placeholder "_____". Provide the exact word form that correctly fills the blank, and three incorrect but plausible same-part-of-speech distractor words that would NOT correctly complete the sentence. Call the fill_blank_content tool with your answer.`,
+        content: `Write a fill-in-the-blank exercise for the German ${word.pos} "${wordDesc}" at CEFR level ${word.level}. Write a natural German sentence at this level that uses the word (inflected/conjugated as natural for the sentence), then replace that word with the exact placeholder "_____". Provide the exact word form that correctly fills the blank.
+
+Then provide exactly three distractor words. These are the whole point of the exercise, so get them right:
+- Each distractor must be a real German word at the SAME CEFR level (${word.level}) as the target word -- not simpler, not harder. A distractor that's obviously below or above the learner's level gives it away without any thought.
+- Each distractor must be grammatically well-formed in the blank's exact slot: same part of speech, and correctly inflected/conjugated for this sentence's case, gender, number, tense, and person, just like the correct answer. A distractor that merely "sounds wrong" grammatically lets the learner eliminate it without understanding the sentence at all -- the only thing that should be wrong about a distractor is its meaning in context.
+- Each distractor should be semantically plausible enough in isolation that only understanding what the sentence actually says rules it out -- not a word so unrelated that it stands out as the odd one out by pure association.
+
+Call the fill_blank_content tool with your answer.`,
       },
     ],
     tools: [
@@ -549,7 +612,8 @@ async function callFillBlankModel(word: {
             distractors: {
               type: "array",
               items: { type: "string" },
-              description: "Exactly three incorrect distractor options.",
+              description:
+                "Exactly three same-level, correctly-inflected, grammatically valid-in-context distractors -- wrong only in meaning, not in form or difficulty.",
             },
           },
           required: ["sentence", "correct_answer", "distractors"],
@@ -600,6 +664,11 @@ export async function logExerciseResult(entry: {
   type: ExerciseType;
   correct: boolean;
   userResponse: string;
+  // False for fill-blank answered in "Level practice" mode -- that pool is
+  // random-at-level rather than SRS-driven, so a hit or miss on a word the
+  // learner never chose to drill shouldn't move its mastery stage or
+  // scheduling. Still logged to exercise_log either way for stats.
+  updateMastery?: boolean;
 }): Promise<void> {
   const user = await requireUser();
 
@@ -612,6 +681,8 @@ export async function logExerciseResult(entry: {
       score: entry.correct ? 1 : 0,
     });
 
-    await applyProgressUpdate(tx, user.id, entry.wordId, entry.correct);
+    if (entry.updateMastery ?? true) {
+      await applyProgressUpdate(tx, user.id, entry.wordId, entry.correct);
+    }
   });
 }

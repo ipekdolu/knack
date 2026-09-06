@@ -6,22 +6,66 @@ import { exerciseLog } from "@/db/schema";
 import { requireUser } from "./shared";
 import type { TargetWord } from "./grading";
 
+export type Register = "du" | "Sie";
+
+export type HelperWord = {
+  word: string;
+  gloss: string;
+};
+
 export type ScenarioPrompt = {
-  scenario: string;
+  // The full task text, in German, as a real Schreiben task would present
+  // it: situation + who you're writing to.
+  situation: string;
+  recipient: string;
+  register: Register;
+  leitpunkte: string[];
+  // Hidden by default in the UI -- optional vocabulary, not required, and
+  // revealing the answer isn't the point of offering it.
+  helperWords: HelperWord[];
+};
+
+export type LeitpunktCoverage = {
+  point: string;
+  covered: boolean;
+  note: string;
+};
+
+export type ScenarioCriterion = {
+  score: number;
+  maxScore: number;
+  note: string;
+};
+
+export type ScenarioCorrection = {
+  original: string;
+  corrected: string;
+  explanation: string;
 };
 
 export type ScenarioGrade = {
-  toneAppropriate: boolean;
-  toneNote: string;
-  structureNote: string;
-  grammarIssues: string[];
+  leitpunkte: LeitpunktCoverage[];
+  registerCorrect: boolean;
+  registerNote: string | null;
+  criteria: {
+    // Kommunikative Zielerreichung/Erfüllung -- did the response actually
+    // do what the task asked (cover the Leitpunkte, fit the situation)?
+    erfuellung: ScenarioCriterion;
+    // Kohärenz -- organization, connectors, logical flow.
+    kohaerenz: ScenarioCriterion;
+    // Wortschatz -- vocabulary range and appropriateness.
+    wortschatz: ScenarioCriterion;
+    // Korrektheit -- grammatical accuracy.
+    korrektheit: ScenarioCriterion;
+  };
+  totalScore: number;
+  passed: boolean;
   feedback: string;
-  correctedResponse: string;
-  wordsUsedCount: number;
-  levelAppropriate: boolean;
-  levelNote: string | null;
-  meetsGoal: boolean;
+  corrections: ScenarioCorrection[];
 };
+
+const POINTS_PER_CRITERION = 25;
+const PASS_THRESHOLD = 60;
 
 export async function generateScenarioPrompt(
   words: TargetWord[],
@@ -36,29 +80,59 @@ export async function generateScenarioPrompt(
 
   const response = await anthropic.messages.create({
     model: "claude-opus-5",
-    max_tokens: 1024,
+    max_tokens: 1536,
     system:
-      "You write realistic writing-practice scenarios for German language learners, calibrated to CEFR levels.",
+      "You write German writing-exam tasks (Schreiben) modeled on real Goethe-Institut and telc exam formats, calibrated to CEFR levels.",
     messages: [
       {
         role: "user",
-        content: `Write one realistic writing scenario, in English, for a learner at CEFR level ${levels} to respond to in German -- e.g. "Write a short email to your landlord explaining that the heating is broken and asking when it will be fixed." It should be answerable in a paragraph or two. Where it fits naturally, design the scenario so these words could plausibly come up: ${wordList} -- but don't force it or mention that requirement in the scenario text itself. Call the scenario_prompt tool with your answer.`,
+        content: `Write one realistic German writing task for a CEFR level ${levels} learner, modeled on a real Goethe/telc Schreiben task (e.g. an email or letter responding to a everyday situation -- a complaint, an invitation, an apology, a request, asking for information, etc).
+
+Requirements:
+- "situation": the task text itself, IN GERMAN, describing the situation the learner is responding to (who they are, what happened, what they need to write). Do not list the Leitpunkte inside this text -- they're shown separately.
+- "recipient": a short German description of who the letter/email is to (e.g. "Ihre Vermieterin", "dein Freund Max", "die Kundenservice-Abteilung").
+- "register": "du" if the recipient is a friend/family/someone the learner would naturally address informally, "Sie" if it's an institution, company, stranger, or formal relationship -- this must be unambiguous so it's testable.
+- "leitpunkte": exactly 3-4 content points in German, in the imperative/infinitive style real exams use (e.g. "Beschreiben Sie das Problem", "Fragen Sie nach einer Lösung"), that the learner's response must address. These are the actual grading checklist, so make each one distinct and concretely checkable.
+- "helper_words": 5-8 German words or short phrases relevant to the topic (each with a short English gloss) that could help someone write the response, but are NOT required and are not needed to complete any Leitpunkt. Where they fit naturally, prefer drawing from this word list the learner has been studying: ${wordList || "(none provided)"}.
+
+Call the scenario_prompt tool with your answer.`,
       },
     ],
     tools: [
       {
         name: "scenario_prompt",
-        description: "Record a writing-practice scenario.",
+        description: "Record a German writing-exam task.",
         input_schema: {
           type: "object",
           properties: {
-            scenario: {
-              type: "string",
-              description:
-                "The scenario/instructions shown to the learner, in English.",
+            situation: { type: "string" },
+            recipient: { type: "string" },
+            register: { type: "string", enum: ["du", "Sie"] },
+            leitpunkte: {
+              type: "array",
+              items: { type: "string" },
+              description: "3-4 content points in German.",
+            },
+            helper_words: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  word: { type: "string" },
+                  gloss: { type: "string" },
+                },
+                required: ["word", "gloss"],
+              },
+              description: "5-8 optional helper words with English glosses.",
             },
           },
-          required: ["scenario"],
+          required: [
+            "situation",
+            "recipient",
+            "register",
+            "leitpunkte",
+            "helper_words",
+          ],
         },
       },
     ],
@@ -69,70 +143,149 @@ export async function generateScenarioPrompt(
   if (!toolUse || toolUse.type !== "tool_use") {
     throw new Error("Claude did not return a scenario");
   }
-  const input = toolUse.input as { scenario: string };
-  return { scenario: input.scenario };
+  const input = toolUse.input as {
+    situation: string;
+    recipient: string;
+    register: Register;
+    leitpunkte: string[];
+    helper_words: { word: string; gloss: string }[];
+  };
+
+  return {
+    situation: input.situation,
+    recipient: input.recipient,
+    register: input.register,
+    leitpunkte: input.leitpunkte,
+    helperWords: input.helper_words,
+  };
 }
 
 export async function gradeScenario(
-  scenario: string,
-  suggestedWords: TargetWord[],
+  prompt: ScenarioPrompt,
   response: string,
 ): Promise<ScenarioGrade> {
   await requireUser();
 
   const anthropic = new Anthropic();
-  const wordList = suggestedWords
-    .map((w) => (w.gender ? `${w.gender} ${w.lemma}` : w.lemma))
-    .join(", ");
-  const levels = [...new Set(suggestedWords.map((w) => w.level))].join("/");
 
   const result = await anthropic.messages.create({
     model: "claude-opus-5",
-    max_tokens: 1024,
+    max_tokens: 2048,
     system:
-      "You grade German writing-scenario responses from language learners. Judge tone and structure, not just vocabulary -- be encouraging but precise about real issues.",
+      "You grade German writing-exam (Schreiben) responses the way a real Goethe/telc examiner does, on the four official criteria. Be precise and fair -- cite specific evidence from the learner's own text for every judgment.",
     messages: [
       {
         role: "user",
-        content: `A learner at approximately CEFR level ${levels} was given this scenario:
-"${scenario}"
+        content: `A learner was given this German writing task:
 
-Their German response: "${response}"
+Situation: "${prompt.situation}"
+Recipient: ${prompt.recipient} (expected register: ${prompt.register})
+Leitpunkte (content points that must be addressed):
+${prompt.leitpunkte.map((p, i) => `${i + 1}. ${p}`).join("\n")}
 
-These words were suggested as optional vocabulary they could use if it fit naturally (not required): ${wordList}.
+Their response: "${response}"
 
-Assess: whether the tone/register fits the scenario (tone_appropriate, tone_note -- one sentence, in English), whether the response is well-structured and actually addresses what the scenario asked (structure_note -- one sentence, in English), any grammar issues (grammar_issues, empty array if none), how many of the suggested words appear used correctly (words_used_count), whether the response sits at a reasonable level for the learner (level_appropriate, level_note in English if not), brief encouraging specific feedback (feedback, 1-2 sentences in English), an improved version of the response in German (corrected_response, unchanged if already good), and an overall judgment of whether this is a solid, appropriate response to the scenario (meets_goal). Call the grade_scenario tool with your answer.`,
+Grade this exactly as a Goethe/telc examiner would, on these four official criteria, each worth ${POINTS_PER_CRITERION} points (total 100, ${PASS_THRESHOLD} = pass):
+
+1. Kommunikative Erfüllung (erfuellung): did the response address every Leitpunkt and actually fit the situation and recipient? For EACH Leitpunkt listed above, judge separately whether it was covered (covered: true/false) and give a one-sentence note citing what the learner wrote (or didn't). Score this criterion based on how completely and appropriately the Leitpunkte were addressed overall.
+2. Kohärenz (kohaerenz): organization, logical flow, appropriate connectors (e.g. deshalb, außerdem, trotzdem), whether it reads as a coherent letter/email rather than disconnected sentences.
+3. Wortschatz (wortschatz): range and appropriateness of vocabulary for the level and topic -- variety, not just repetition of the same words.
+4. Korrektheit (korrektheit): grammatical accuracy -- word order, case, verb conjugation, agreement. Also judge register here: does the learner consistently use ${prompt.register === "du" ? "du/dich/dein (informal)" : "Sie/Ihnen/Ihr (formal)"} as this situation requires, with no informal/formal mixing? Set register_correct to false and explain in register_note (citing the specific words) if they used the wrong register anywhere, even partially correctly elsewhere.
+
+For each criterion return a score out of ${POINTS_PER_CRITERION} and a one-to-two sentence note citing specific evidence from the response.
+
+Then list 2-5 concrete corrections: each one must quote the learner's own original phrase (exactly as they wrote it, verbatim substring of their response), the corrected German version of that phrase, and a short explanation of why. Prioritize the most instructive errors, not every typo.
+
+Finally, give brief overall feedback (2-3 sentences, in English, encouraging but specific about what would raise the score).
+
+Call the grade_scenario tool with your answer.`,
       },
     ],
     tools: [
       {
         name: "grade_scenario",
-        description: "Record a graded assessment of a learner's scenario response.",
+        description: "Record an exam-style grading of a German writing response.",
         input_schema: {
           type: "object",
           properties: {
-            tone_appropriate: { type: "boolean" },
-            tone_note: { type: "string" },
-            structure_note: { type: "string" },
-            grammar_issues: { type: "array", items: { type: "string" } },
-            words_used_count: { type: "integer" },
+            leitpunkte: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  point: { type: "string" },
+                  covered: { type: "boolean" },
+                  note: { type: "string" },
+                },
+                required: ["point", "covered", "note"],
+              },
+              description:
+                "One entry per Leitpunkt given, in the same order, each citing evidence.",
+            },
+            register_correct: { type: "boolean" },
+            register_note: {
+              type: "string",
+              description: "Empty string if register_correct is true.",
+            },
+            erfuellung: {
+              type: "object",
+              properties: {
+                score: { type: "integer" },
+                note: { type: "string" },
+              },
+              required: ["score", "note"],
+            },
+            kohaerenz: {
+              type: "object",
+              properties: {
+                score: { type: "integer" },
+                note: { type: "string" },
+              },
+              required: ["score", "note"],
+            },
+            wortschatz: {
+              type: "object",
+              properties: {
+                score: { type: "integer" },
+                note: { type: "string" },
+              },
+              required: ["score", "note"],
+            },
+            korrektheit: {
+              type: "object",
+              properties: {
+                score: { type: "integer" },
+                note: { type: "string" },
+              },
+              required: ["score", "note"],
+            },
+            corrections: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  original: {
+                    type: "string",
+                    description: "Verbatim substring of the learner's response.",
+                  },
+                  corrected: { type: "string" },
+                  explanation: { type: "string" },
+                },
+                required: ["original", "corrected", "explanation"],
+              },
+            },
             feedback: { type: "string" },
-            corrected_response: { type: "string" },
-            level_appropriate: { type: "boolean" },
-            level_note: { type: "string" },
-            meets_goal: { type: "boolean" },
           },
           required: [
-            "tone_appropriate",
-            "tone_note",
-            "structure_note",
-            "grammar_issues",
-            "words_used_count",
+            "leitpunkte",
+            "register_correct",
+            "register_note",
+            "erfuellung",
+            "kohaerenz",
+            "wortschatz",
+            "korrektheit",
+            "corrections",
             "feedback",
-            "corrected_response",
-            "level_appropriate",
-            "level_note",
-            "meets_goal",
           ],
         },
       },
@@ -145,29 +298,55 @@ Assess: whether the tone/register fits the scenario (tone_appropriate, tone_note
     throw new Error("Claude did not return a grading result");
   }
   const input = toolUse.input as {
-    tone_appropriate: boolean;
-    tone_note: string;
-    structure_note: string;
-    grammar_issues: string[];
-    words_used_count: number;
+    leitpunkte: { point: string; covered: boolean; note: string }[];
+    register_correct: boolean;
+    register_note: string;
+    erfuellung: { score: number; note: string };
+    kohaerenz: { score: number; note: string };
+    wortschatz: { score: number; note: string };
+    korrektheit: { score: number; note: string };
+    corrections: { original: string; corrected: string; explanation: string }[];
     feedback: string;
-    corrected_response: string;
-    level_appropriate: boolean;
-    level_note: string;
-    meets_goal: boolean;
   };
 
+  const clampScore = (n: number) => Math.max(0, Math.min(POINTS_PER_CRITERION, n));
+  const criteria = {
+    erfuellung: {
+      score: clampScore(input.erfuellung.score),
+      maxScore: POINTS_PER_CRITERION,
+      note: input.erfuellung.note,
+    },
+    kohaerenz: {
+      score: clampScore(input.kohaerenz.score),
+      maxScore: POINTS_PER_CRITERION,
+      note: input.kohaerenz.note,
+    },
+    wortschatz: {
+      score: clampScore(input.wortschatz.score),
+      maxScore: POINTS_PER_CRITERION,
+      note: input.wortschatz.note,
+    },
+    korrektheit: {
+      score: clampScore(input.korrektheit.score),
+      maxScore: POINTS_PER_CRITERION,
+      note: input.korrektheit.note,
+    },
+  };
+  const totalScore =
+    criteria.erfuellung.score +
+    criteria.kohaerenz.score +
+    criteria.wortschatz.score +
+    criteria.korrektheit.score;
+
   return {
-    toneAppropriate: input.tone_appropriate,
-    toneNote: input.tone_note,
-    structureNote: input.structure_note,
-    grammarIssues: input.grammar_issues,
+    leitpunkte: input.leitpunkte,
+    registerCorrect: input.register_correct,
+    registerNote: input.register_note?.trim() ? input.register_note.trim() : null,
+    criteria,
+    totalScore,
+    passed: totalScore >= PASS_THRESHOLD,
     feedback: input.feedback,
-    correctedResponse: input.corrected_response,
-    wordsUsedCount: input.words_used_count,
-    levelAppropriate: input.level_appropriate,
-    levelNote: input.level_note?.trim() ? input.level_note.trim() : null,
-    meetsGoal: input.meets_goal,
+    corrections: input.corrections,
   };
 }
 
@@ -179,18 +358,16 @@ export async function logScenarioResult(entry: {
   const user = await requireUser();
   const { grade } = entry;
 
-  // Log only -- the suggested words are optional bonus vocabulary here, not
-  // the graded objective (tone/structure are), so this doesn't call
+  // Log only -- helper words are optional bonus vocabulary here, not the
+  // graded objective (the four writing criteria are), so this doesn't call
   // applyProgressUpdate the way sentence-writing's required words do.
   const feedback = JSON.stringify({
-    toneAppropriate: grade.toneAppropriate,
-    toneNote: grade.toneNote,
-    structureNote: grade.structureNote,
-    grammarIssues: grade.grammarIssues,
-    correctedResponse: grade.correctedResponse,
-    wordsUsedCount: grade.wordsUsedCount,
-    levelAppropriate: grade.levelAppropriate,
-    levelNote: grade.levelNote,
+    leitpunkte: grade.leitpunkte,
+    registerCorrect: grade.registerCorrect,
+    registerNote: grade.registerNote,
+    criteria: grade.criteria,
+    totalScore: grade.totalScore,
+    corrections: grade.corrections,
   });
 
   await db.insert(exerciseLog).values({
@@ -198,7 +375,7 @@ export async function logScenarioResult(entry: {
     wordIds: entry.wordIds,
     exerciseType: "scenario",
     userResponse: entry.userResponse,
-    score: grade.meetsGoal ? 1 : 0,
+    score: grade.passed ? 1 : 0,
     feedback,
   });
 }

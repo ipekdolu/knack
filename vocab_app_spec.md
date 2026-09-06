@@ -80,19 +80,20 @@
 |---|---|---|---|
 | ✅ | Claude API grading call: given target words + user's written response, return structured feedback (correct usage? grammar issues? level-appropriate?) | P0 | This grader is reused as-is by Phase 6 speaking exercises |
 | ✅ | "Write a sentence using these words" exercise + UI | P0 | |
+| ✅ | Scenario/passage writing (e.g. "write a complaint email") + richer grading (tone, structure, not just word usage) | P1 | |
 | ✅ | Store grading feedback in `exercise_log.feedback` | P1 | |
 
-## Phase 6 — Speaking Practice ✅
+## Phase 6 — Speaking Practice ✅ (word-anchored version — SUPERSEDED by Phase 12)
 
-Reuses the Phase 5 grader — speaking is a new input method, not a separate grading system.
+Original version reused the Phase 5 grader with word-anchored prompts. Found too limited (see Phase 12 for the redesign rationale). Read-aloud exercise is being removed entirely.
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
-| ✅ | Mic capture + speech-to-text via browser Web Speech API (`de-DE`) | P0 | Free, no backend call. Works well in Chrome/Edge; patchy in Firefox/Safari — needs a fallback message |
-| ✅ | "Read this sentence aloud" exercise: simple match-check against target text | P1 | No grading engine needed — just string comparison |
-| ✅ | "Answer this prompt using these words" (spoken): transcript → Phase 5 grader | P1 | |
+| ✅ | Mic capture + speech-to-text via browser Web Speech API (`de-DE`) | P0 | Reused by the redesign |
+| ~~✅~~ | ~~"Read this sentence aloud" exercise~~ | — | **REMOVED** — pronunciation drill, not real speaking practice |
+| ~~✅~~ | ~~"Answer this prompt using these words" (spoken, word-anchored)~~ | — | **SUPERSEDED** by Phase 12 conversational format |
 | ⬜ | (Stretch) Swap Web Speech API for OpenAI Whisper API transcription | P2 | ~$0.006/min — more reliable cross-browser, better on non-native accents |
-| ⬜ | (Stretch) Pronunciation/accent scoring via Azure Speech Pronunciation Assessment | P2 | Separate account/SDK, real complexity — optional polish, not core |
+| ⬜ | (Stretch) Pronunciation/accent scoring via Azure Speech Pronunciation Assessment | P2 | The only path to real pronunciation feedback — Web Speech API can't score accent |
 
 ---
 
@@ -106,56 +107,93 @@ At end of Phase 6 the engine works but everything lives on one page. These phase
 - "Difficult words" pool = union of (accuracy < 50% over ≥3 attempts, computed from `exercise_log`) + (words the user manually flags via a star button).
 - Missions: a *fixed* number of daily missions (e.g. 3) so the points faucet is capped and streak-repair can't be farmed. Simple version only — points awarded on completion, one spend (streak repair). More point sinks (cosmetics, XP levels) noted as future.
 
-## Phase 8 — Navigation & Page Structure ✅
+## Phase 8 — Navigation & Page Structure
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
-| ✅ | Landing page (logged-out): what the app is + login CTA | P0 | Public at `/`; signed-in visitors redirect to `/home`. Also the future home for branding/mascot |
-| ✅ | App navigation shell (Home / Vocab / Activities / Missions) | P0 | Bottom tabs on mobile, top bar on desktop. Lives in an `(app)` route-group layout that also enforces auth |
-| ✅ | Home page: stats, streak, mastery breakdown, "start today's practice", surfaced daily missions | P0 | Missions section is a placeholder until Phase 11 builds them |
-| ✅ | Move existing exercise UIs behind the new structure (no logic changes, just relocation) | P1 | Flashcards → `/vocab/review`; exercises → `/activities/*`. Shared logic moved to `src/lib/practice`. Old URLs redirect |
+| ⬜ | Landing page (logged-out): what the app is + login CTA | P0 | Also the future home for branding/mascot |
+| ⬜ | App navigation shell (Home / Vocab / Activities / Missions) | P0 | Persistent nav so the new spaces are reachable |
+| ⬜ | Home page: stats, streak, mastery breakdown, "start today's practice", surfaced daily missions | P0 | Reworks the current single page into the Home hub |
+| ⬜ | Move existing exercise UIs behind the new structure (no logic changes, just relocation) | P1 | Pure reorganization — confirm nothing breaks before adding new features |
 
 ## Phase 9 — Vocab (Flashcards) Space
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
-| ✅ | Vocab landing: entry to flashcard modes | P0 | |
-| ✅ | Review (flashcards for words due / in rotation) | P0 | |
-| ✅ | Difficult Words pool (auto low-accuracy + manually flagged) | P1 | Add `is_flagged` boolean to `user_word_progress`; star button on cards |
-| ✅ | Speed Review (fast, timed flip-through) | P1 | |
-| ✅ | Custom flashcard creation | P1 | Ties into existing manual word-add |
-| ✅ | User control: how many cards per session | P2 | |
+| ⬜ | Vocab landing: entry to flashcard modes | P0 | |
+| ⬜ | Review (flashcards for words due / in rotation) | P0 | |
+| ⬜ | Difficult Words pool (auto low-accuracy + manually flagged) | P1 | Add `is_flagged` boolean to `user_word_progress`; star button on cards |
+| ⬜ | Speed Review (fast, timed flip-through) | P1 | |
+| ⬜ | Custom flashcard creation | P1 | Ties into existing manual word-add |
+| ⬜ | User control: how many cards per session | P2 | |
 
-## Phase 10 — Activities Space + Reading
+## Phase 10 — Activities Space + Reading ✅ (initial build — see Phase 13 revision)
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
 | ✅ | Activities landing: pick exercise type (fill-blank, sentence, scenario, speaking) | P0 | Surfaces the exercises already built in earlier phases |
-| ✅ | Scenario/passage writing (e.g. "write a complaint email") + richer grading (tone, structure, not just word usage) | P1 | Moved here from Phase 5 — never built; the Activities landing above expects it |
-| ✅ | **Reading exercise (NEW)**: Claude generates a short level-appropriate passage seeded with target words → comprehension check / word identification | P1 | Reuses existing generation + grading engine; add `reading` to exercise_type enum |
+| ✅ | Reading exercise: passage seeded with target words → comprehension check | P1 | Built, but leans on seen-words → too easy (fixed in Phase 13) |
 | ✅ | Store reading results in `exercise_log` | P1 | |
 
 ## Phase 11 — Missions & Points (simple)
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
-| ✅ | `daily_missions` + `user_points` schema | P0 | See data model additions |
-| ✅ | Generate a fixed set of daily missions per user (e.g. 3) | P0 | Cap makes points un-farmable |
-| ✅ | Track mission completion, award points | P0 | |
-| ✅ | Points balance display (Home / Missions page) | P1 | |
-| ✅ | Spend points to repair/extend streak (priced as genuine catch-up, not free pass) | P1 | The one point-sink for now |
+| ⬜ | `daily_missions` + `user_points` schema | P0 | See data model additions |
+| ⬜ | Generate a fixed set of daily missions per user (e.g. 3) | P0 | Cap makes points un-farmable |
+| ⬜ | Track mission completion, award points | P0 | |
+| ⬜ | Points balance display (Home / Missions page) | P1 | |
+| ⬜ | Spend points to repair/extend streak (priced as genuine catch-up, not free pass) | P1 | The one point-sink for now |
 | ⬜ | (Future) additional point sinks: cosmetics, XP levels | P2 | Noted, not built |
 
-## Phase 12 — Production Readiness & Polish (was Phase 7)
+---
 
-Moved to the end: polishing before the structure settled would be wasted work. This is what separates "works on my machine" from something you'd demo confidently in an interview. **UI redesign / branding / potato mascot happens here too.**
+# Revision phases (12–13) — exercise quality overhaul
+
+Discovered after building: most exercises leaned on "words already seen in flashcards," which turns comprehension into recognition/pattern-matching and defeats the learning goal. Flashcards keeping word-anchoring is correct (that's acquisition); reading/writing/speaking should be **level-first, vocabulary-exposure-second.** These two phases fix that. Both are grounded in real Goethe/telc exam formats (researched, not guessed).
+
+**Cross-cutting decision — vocabulary source toggle:** reading and fill-blank exercises get a user toggle: **"My words"** (reinforce seen/drilled vocabulary) vs. **"Level practice"** (level-appropriate pool including unseen words, so recognition can't shortcut the task). Both modes valuable; user chooses per session.
+
+## Phase 12 — Speaking Module Redesign
+
+Replaces the word-anchored Phase 6 speaking exercises with a conversational, exam-style module. Mirrors real Goethe oral exams, which from B1 up are a paired interaction (examiner/partner) — the role Claude plays.
+
+| Status | Task | Priority | Notes |
+|---|---|---|---|
+| ⬜ | Remove old read-aloud + word-anchored speaking exercises | P0 | Clean removal before rebuild |
+| ⬜ | Conversational session engine: Claude as examiner/partner, German-only, multi-turn | P0 | Fully free conversation — no target words. Claude simplifies its German at A1/A2 so immersive ≠ incomprehensible |
+| ⬜ | Level-appropriate task types matched to real oral-exam formats | P0 | A1/A2: self-intro + everyday Q&A · B1: describe/narrate + opinion · B2: discuss/argue, Claude takes a counter-position · C1: present + problem-solve |
+| ⬜ | Exam-like fixed turn count (~5–6 turns), then session ends | P1 | User's choice: exam-realism over open-ended |
+| ⬜ | Feedback timing toggle (user chooses per session): gentle per-turn nudges OR clean end-of-session report | P1 | |
+| ⬜ | End-of-session report scored on real oral-exam dimensions | P0 | Fluency, accuracy, spontaneity, interaction, vocabulary range, task completion — with examples from what the user said + corrected versions |
+| ⬜ | Store speaking sessions in `exercise_log` (exercise_type `speaking_conversation`) | P1 | Replaces old `speaking_read` / `speaking_prompt` types |
+
+## Phase 13 — Activities Fixes (revises Phase 10)
+
+| Status | Task | Priority | Notes |
+|---|---|---|---|
+| ✅ | Add vocabulary-source toggle (My words / Level practice) to reading + fill-blank | P0 | The core de-anchoring fix |
+| ✅ | Fill-blank: generate distractors that are same-level and plausibly fit the sentence | P0 | Forces understanding the sentence, not spotting the one known word |
+| ✅ | Fill-blank: optional free-type mode (no options) for a harder variant | P2 | Removes the multiple-choice shortcut entirely |
+| ✅ | Scenario/writing: prompts in German, modeled on real Schreiben tasks | P0 | Include explicit Leitpunkte (content points) + specify recipient so register (du/Sie) is testable |
+| ✅ | Scenario/writing: optional help words behind a "Wörter anzeigen, die helfen" button | P1 | Hidden by default so the answer isn't fed; revealed only if stuck |
+| ✅ | Scenario/writing: exam-style grading on the 4 official criteria | P0 | Kommunikative Zielerreichung/Erfüllung, Kohärenz, Wortschatz, Korrektheit — check each Leitpunkt covered + flag register errors. ~100-pt scale, 60 = pass |
+| ✅ | Reading: passage is level-appropriate with a few *new* stretch words woven in (comprehensible input) | P0 | Not built only from seen words |
+| ✅ | Reading: comprehension questions test meaning/inference, not word-spotting | P0 | Can't be answered by matching a familiar word |
+| ⬜ | (Future idea) Reading → save new words from a passage into the vocab bank | P2 | Turns reading into a *source* of flashcard words; nice loop, deferred |
+
+---
+
+## Phase 14 — Production Readiness & Polish (FINAL STEP)
+
+**The last phase — after Phases 12–13.** Polishing before the structure and exercise quality settled would be wasted work. This is what separates "works on my machine" from something you'd demo confidently in an interview. **UI redesign / branding / potato mascot happens here too.**
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
 | ⬜ | Enable Row Level Security (RLS) on all Supabase tables + write policies (users only read/write their own progress) | P0 | Security gap if skipped — anyone with the anon key could otherwise query other users' data |
 | ⬜ | Error handling for Claude API failures (timeouts, rate limits, malformed JSON responses) | P0 | LLM calls fail sometimes — the app shouldn't crash, should retry or show a friendly message |
 | ⬜ | UI redesign: design-system pass (color tokens, typography, reusable components) then restyle pages | P1 | Define tokens first, restyle second |
-| ⬜ | Potato mascot: generate art (Recraft/DALL·E), add to hero / empty states / result screens | P1 | Leave placeholder image slots during restructure so this drops in cleanly |
+| ⬜ | Potato mascot: generate art (Recraft/DALL·E), add to hero / empty states / result screens | P1 | Leave placeholder image slots earlier so this drops in cleanly |
 | ⬜ | Loading states for all async actions (exercise generation, grading, session load) | P1 | Claude API calls take a few seconds — blank screens feel broken without this |
 | ⬜ | Basic cost control on Claude API usage (e.g. cache generated exercises, avoid redundant calls) | P1 | Matters once this isn't just for personal use — worth doing anyway as good practice |
 | ⬜ | Mobile-responsive layout check | P1 | You'll likely want to practice on your phone |
@@ -167,7 +205,7 @@ Moved to the end: polishing before the structure settled would be wasted work. T
 
 ---
 
-## Data model
+# Data model
 
 ```
 words

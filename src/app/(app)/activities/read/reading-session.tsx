@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { startSession, type SessionWord } from "@/lib/practice/actions";
+import {
+  startSession,
+  getLevelPracticeWords,
+  type SessionWord,
+} from "@/lib/practice/actions";
 import { chunkWords } from "@/lib/practice/chunk";
 import {
   generateReadingPassage,
@@ -11,6 +15,10 @@ import {
 } from "@/lib/practice/reading";
 
 type Phase = "loading" | "generating" | "answer" | "result" | "complete" | "error";
+// "My words" reinforces vocabulary the learner has already seen/drilled.
+// "Level practice" samples randomly across the whole level so a passage
+// can't be built only from words the learner would recognize on sight.
+type VocabSource = "my_words" | "level_practice";
 
 export default function ReadingSession() {
   const [groups, setGroups] = useState<SessionWord[][]>([]);
@@ -21,6 +29,7 @@ export default function ReadingSession() {
   const [presentPicks, setPresentPicks] = useState<Set<string>>(new Set());
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [vocabSource, setVocabSource] = useState<VocabSource>("level_practice");
 
   // Bumped on every begin() so a stale in-flight request from a prior
   // session (React Strict Mode's dev-mode double-invoke of the mount
@@ -28,10 +37,14 @@ export default function ReadingSession() {
   // newer session's state.
   const sessionId = useRef(0);
 
-  function begin() {
+  function begin(source: VocabSource = vocabSource) {
     const mySession = ++sessionId.current;
     setPhase("loading");
-    startSession("reading", 10)
+    const load =
+      source === "level_practice"
+        ? getLevelPracticeWords("reading", 10)
+        : startSession("reading", 10);
+    load
       .then(({ words: sessionWords, level }) => {
         if (mySession !== sessionId.current) return;
         setGroups(chunkWords(sessionWords, { min: 4, max: 6 }));
@@ -62,6 +75,12 @@ export default function ReadingSession() {
     begin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function handleVocabSourceChange(source: VocabSource) {
+    if (source === vocabSource) return;
+    setVocabSource(source);
+    begin(source);
+  }
 
   const current = groups[index];
 
@@ -145,6 +164,27 @@ export default function ReadingSession() {
         </Link>
         <h1 className="mt-2 text-xl font-semibold">Reading</h1>
 
+        <div className="mt-3 flex gap-1 rounded-md border border-gray-300 p-1 text-sm">
+          {(
+            [
+              { value: "level_practice", label: "Level practice" },
+              { value: "my_words", label: "My words" },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => handleVocabSourceChange(opt.value)}
+              className={`flex-1 rounded px-3 py-1.5 ${
+                vocabSource === opt.value
+                  ? "bg-black text-white"
+                  : "text-gray-500 hover:bg-gray-100"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
         {phase === "error" && (
           <div className="mt-4 flex flex-col gap-3">
             <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -186,6 +226,22 @@ export default function ReadingSession() {
                 {content.passage}
               </p>
             </div>
+
+            {content.stretchWords.length > 0 && (
+              <div className="rounded-lg border border-dashed border-gray-300 p-3 text-sm">
+                <p className="font-medium text-gray-600">New words in this passage</p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {content.stretchWords.map((sw, i) => (
+                    <span
+                      key={i}
+                      className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600"
+                    >
+                      {sw.word} <span className="text-gray-400">({sw.gloss})</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col gap-3">
               {content.questions.map((q, qi) => (
@@ -295,7 +351,7 @@ export default function ReadingSession() {
                 Home
               </Link>
               <button
-                onClick={begin}
+                onClick={() => begin()}
                 className="flex-1 rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
               >
                 Practice again

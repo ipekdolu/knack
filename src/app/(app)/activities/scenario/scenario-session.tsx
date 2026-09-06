@@ -7,17 +7,29 @@ import {
   generateScenarioPrompt,
   gradeScenario,
   logScenarioResult,
+  type ScenarioPrompt,
   type ScenarioGrade,
 } from "@/lib/practice/scenario";
 
 type Phase = "loading" | "generating" | "answer" | "grading" | "result" | "error";
 
-const WORDS_PER_SCENARIO = 5;
+const WORDS_PER_SCENARIO = 6;
+
+const CRITERION_LABELS: Record<
+  keyof ScenarioGrade["criteria"],
+  string
+> = {
+  erfuellung: "Kommunikative Erfüllung",
+  kohaerenz: "Kohärenz",
+  wortschatz: "Wortschatz",
+  korrektheit: "Korrektheit",
+};
 
 export default function ScenarioSession() {
   const [suggestedWords, setSuggestedWords] = useState<SessionWord[]>([]);
   const [phase, setPhase] = useState<Phase>("loading");
-  const [scenario, setScenario] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState<ScenarioPrompt | null>(null);
+  const [showHelperWords, setShowHelperWords] = useState(false);
   const [response, setResponse] = useState("");
   const [grade, setGrade] = useState<ScenarioGrade | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +43,8 @@ export default function ScenarioSession() {
   function begin() {
     const mySession = ++sessionId.current;
     setPhase("loading");
-    setScenario(null);
+    setPrompt(null);
+    setShowHelperWords(false);
     setResponse("");
     setGrade(null);
     startSession("scenario", WORDS_PER_SCENARIO)
@@ -70,7 +83,7 @@ export default function ScenarioSession() {
     generateScenarioPrompt(suggestedWords)
       .then((result) => {
         if (mySession !== sessionId.current) return;
-        setScenario(result.scenario);
+        setPrompt(result);
         setPhase("answer");
       })
       .catch((err) => {
@@ -83,11 +96,11 @@ export default function ScenarioSession() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!scenario || !response.trim()) return;
+    if (!prompt || !response.trim()) return;
     setPhase("grading");
     setError(null);
     try {
-      const result = await gradeScenario(scenario, suggestedWords, response.trim());
+      const result = await gradeScenario(prompt, response.trim());
       setGrade(result);
       setPhase("result");
       await logScenarioResult({
@@ -129,62 +142,117 @@ export default function ScenarioSession() {
           </p>
         )}
 
-        {scenario && (phase === "answer" || phase === "grading" || phase === "result") && (
+        {prompt && (phase === "answer" || phase === "grading" || phase === "result") && (
           <div className="mt-4 flex flex-col gap-4">
             <div className="flex flex-col gap-3 rounded-lg border border-gray-300 p-4">
-              <p>{scenario}</p>
-              <div className="flex flex-wrap gap-2">
-                {suggestedWords.map((w) => (
-                  <span
-                    key={w.wordId}
-                    className="rounded-full border border-gray-300 px-3 py-1 text-xs font-medium text-gray-500"
-                  >
-                    {w.gender ? `${w.gender} ` : ""}
-                    {w.lemma}
-                  </span>
-                ))}
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>An: {prompt.recipient}</span>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium">
+                  {prompt.register}
+                </span>
               </div>
-              <p className="text-xs text-gray-400">
-                These words are optional -- use them if they fit.
-              </p>
+              <p>{prompt.situation}</p>
+              <ul className="list-inside list-disc text-sm text-gray-700">
+                {prompt.leitpunkte.map((point, i) => (
+                  <li key={i}>{point}</li>
+                ))}
+              </ul>
+
+              {!showHelperWords ? (
+                <button
+                  type="button"
+                  onClick={() => setShowHelperWords(true)}
+                  className="w-fit text-xs text-gray-500 underline hover:text-gray-700"
+                >
+                  Wörter anzeigen, die helfen
+                </button>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {prompt.helperWords.map((hw, i) => (
+                    <span
+                      key={i}
+                      className="rounded-full border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600"
+                      title={hw.gloss}
+                    >
+                      {hw.word}
+                      <span className="ml-1 text-gray-400">({hw.gloss})</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {phase === "result" && grade && (
-              <div className="flex flex-col gap-2 text-left text-sm">
-                <p
-                  className={`font-medium ${grade.meetsGoal ? "text-green-700" : "text-amber-700"}`}
-                >
-                  {grade.meetsGoal
-                    ? "Solid response."
-                    : "This could use another pass."}
-                </p>
+              <div className="flex flex-col gap-3 text-left text-sm">
+                <div className="flex items-center justify-between rounded-lg border border-gray-300 p-3">
+                  <span
+                    className={`text-lg font-semibold ${grade.passed ? "text-green-700" : "text-amber-700"}`}
+                  >
+                    {grade.totalScore} / 100
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      grade.passed
+                        ? "bg-green-100 text-green-700"
+                        : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {grade.passed ? "Bestanden" : "Nicht bestanden"}
+                  </span>
+                </div>
+
                 <p className="text-gray-700">{grade.feedback}</p>
-                <p className="text-gray-500">
-                  <span className="font-medium">Tone:</span> {grade.toneNote}
-                </p>
-                <p className="text-gray-500">
-                  <span className="font-medium">Structure:</span>{" "}
-                  {grade.structureNote}
-                </p>
-                {grade.grammarIssues.length > 0 && (
-                  <ul className="list-inside list-disc text-gray-500">
-                    {grade.grammarIssues.map((issue, i) => (
-                      <li key={i}>{issue}</li>
-                    ))}
-                  </ul>
-                )}
-                <p className="text-gray-500">
-                  Used {grade.wordsUsedCount} of the {suggestedWords.length}{" "}
-                  suggested words.
-                </p>
-                {grade.correctedResponse.trim().toLowerCase() !==
-                  response.trim().toLowerCase() && (
-                  <p className="italic text-gray-600">
-                    Suggested: {grade.correctedResponse}
+
+                {!grade.registerCorrect && grade.registerNote && (
+                  <p className="rounded-md bg-red-50 px-3 py-2 text-red-700">
+                    Register: {grade.registerNote}
                   </p>
                 )}
-                {!grade.levelAppropriate && grade.levelNote && (
-                  <p className="text-amber-700">{grade.levelNote}</p>
+
+                <div className="flex flex-col gap-2">
+                  {(
+                    Object.keys(grade.criteria) as (keyof ScenarioGrade["criteria"])[]
+                  ).map((key) => {
+                    const c = grade.criteria[key];
+                    return (
+                      <div key={key} className="rounded-md border border-gray-200 p-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{CRITERION_LABELS[key]}</span>
+                          <span className="text-gray-500">
+                            {c.score} / {c.maxScore}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-gray-500">{c.note}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div>
+                  <p className="font-medium">Leitpunkte</p>
+                  <ul className="mt-1 flex flex-col gap-1">
+                    {grade.leitpunkte.map((lp, i) => (
+                      <li key={i} className={lp.covered ? "text-green-700" : "text-red-700"}>
+                        {lp.covered ? "✓" : "✗"} {lp.point}
+                        <span className="block text-xs text-gray-500">{lp.note}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {grade.corrections.length > 0 && (
+                  <div>
+                    <p className="font-medium">Corrections</p>
+                    <div className="mt-1 flex flex-col gap-2">
+                      {grade.corrections.map((c, i) => (
+                        <div key={i} className="rounded-md bg-gray-50 p-2">
+                          <p className="text-red-700 line-through">{c.original}</p>
+                          <p className="text-green-700">{c.corrected}</p>
+                          <p className="mt-1 text-xs text-gray-500">{c.explanation}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -196,7 +264,7 @@ export default function ScenarioSession() {
                   onChange={(e) => setResponse(e.target.value)}
                   disabled={phase === "grading"}
                   placeholder="Schreib deine Antwort..."
-                  rows={6}
+                  rows={8}
                   className="rounded-md border border-gray-300 px-3 py-2 disabled:opacity-50"
                   autoFocus
                 />
