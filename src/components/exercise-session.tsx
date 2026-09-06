@@ -70,6 +70,12 @@ export default function ExerciseSession({
     indexRef.current = index;
   }, [index]);
 
+  // Bumped on every begin() so in-flight fetches from a session that has
+  // since been restarted (Practice again, or React Strict Mode's dev-mode
+  // double-invoke of the mount effect) know to discard their result instead
+  // of writing a stale word's content into the new queue's cache slot.
+  const sessionId = useRef(0);
+
   function fetchContent(word: SessionWord): Promise<Content> {
     return type === "flashcard" ? generateFlashcard(word) : generateFillBlank(word);
   }
@@ -77,17 +83,20 @@ export default function ExerciseSession({
   function ensureFetched(i: number, words: SessionWord[]) {
     if (i < 0 || i >= words.length) return;
     if (contentCache.current[i] || fetching.current.has(i)) return;
+    const mySession = sessionId.current;
     fetching.current.add(i);
     fetchContent(words[i])
       .then((content) => {
-        contentCache.current[i] = content;
         fetching.current.delete(i);
+        if (mySession !== sessionId.current) return;
+        contentCache.current[i] = content;
         if (i === indexRef.current) {
           setPhase("front");
         }
       })
       .catch((err) => {
         fetching.current.delete(i);
+        if (mySession !== sessionId.current) return;
         if (i === indexRef.current) {
           setError(
             err instanceof Error ? err.message : "Failed to generate exercise",
@@ -98,6 +107,7 @@ export default function ExerciseSession({
   }
 
   function begin() {
+    const mySession = ++sessionId.current;
     setPhase("loading");
     contentCache.current = {};
     fetching.current.clear();
@@ -111,6 +121,7 @@ export default function ExerciseSession({
 
     load
       .then(({ words: sessionWords, level }) => {
+        if (mySession !== sessionId.current) return;
         setQueue(sessionWords);
         setIndex(0);
         setScore({ correct: 0, total: 0 });
@@ -125,6 +136,7 @@ export default function ExerciseSession({
         }
       })
       .catch((err) => {
+        if (mySession !== sessionId.current) return;
         setError(err instanceof Error ? err.message : "Failed to start session");
         setPhase("error");
       });
