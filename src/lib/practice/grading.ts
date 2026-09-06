@@ -167,8 +167,6 @@ For each target word, judge whether it appears in the sentence used correctly (p
 export async function logSentenceResult(entry: {
   grade: SentenceGrade;
   userResponse: string;
-  /** Written practice by default; spoken answers log under their own type. */
-  exerciseType?: "sentence" | "speaking_prompt";
 }): Promise<void> {
   const user = await requireUser();
   const { grade } = entry;
@@ -192,7 +190,7 @@ export async function logSentenceResult(entry: {
     await tx.insert(exerciseLog).values({
       userId: user.id,
       wordIds: grade.wordResults.map((r) => r.wordId),
-      exerciseType: entry.exerciseType ?? "sentence",
+      exerciseType: "sentence",
       userResponse: entry.userResponse,
       score: grade.allCorrect ? 1 : 0,
       feedback,

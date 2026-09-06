@@ -12,9 +12,16 @@ const nextConfig: NextConfig = {
         destination: "/vocab/review",
         permanent: false,
       },
+      // Phase 12 replaced the two old speak/:slug sub-pages with a single
+      // conversational module -- both old deep links land there now.
       {
         source: "/practice/speak/:slug",
-        destination: "/activities/speak/:slug",
+        destination: "/activities/speak",
+        permanent: false,
+      },
+      {
+        source: "/activities/speak/:slug",
+        destination: "/activities/speak",
         permanent: false,
       },
       {

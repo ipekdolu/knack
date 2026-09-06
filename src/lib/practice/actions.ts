@@ -20,13 +20,14 @@ import {
 } from "./shared";
 import { getOrCreateContent } from "./content-cache";
 
+// speaking_read/speaking_prompt retired in Phase 12 -- speaking_conversation
+// replaces both, handled by its own module (conversation.ts) rather than
+// this shared session/generation pipeline (no target-word pool).
 export type ExerciseType =
   | "flashcard"
   | "fill_blank"
   | "sentence"
   | "scenario"
-  | "speaking_read"
-  | "speaking_prompt"
   | "reading";
 
 export type SessionWord = {
@@ -99,6 +100,13 @@ async function getEffectiveLevel(userId: string): Promise<string | null> {
   return rows
     .map((r) => r.level)
     .sort((a, b) => LEVEL_ORDER.indexOf(a) - LEVEL_ORDER.indexOf(b))[0];
+}
+
+// The conversational speaking module (Phase 12) has no target-word pool --
+// it just needs the user's level, same resolution rule as everything else.
+export async function getUserLevel(): Promise<string | null> {
+  const user = await requireUser();
+  return getEffectiveLevel(user.id);
 }
 
 const DUE_TARGET = 7;

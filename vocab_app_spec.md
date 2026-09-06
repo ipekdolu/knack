@@ -160,13 +160,13 @@ Replaces the word-anchored Phase 6 speaking exercises with a conversational, exa
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
-| ⬜ | Remove old read-aloud + word-anchored speaking exercises | P0 | Clean removal before rebuild |
-| ⬜ | Conversational session engine: Claude as examiner/partner, German-only, multi-turn | P0 | Fully free conversation — no target words. Claude simplifies its German at A1/A2 so immersive ≠ incomprehensible |
-| ⬜ | Level-appropriate task types matched to real oral-exam formats | P0 | A1/A2: self-intro + everyday Q&A · B1: describe/narrate + opinion · B2: discuss/argue, Claude takes a counter-position · C1: present + problem-solve |
-| ⬜ | Exam-like fixed turn count (~5–6 turns), then session ends | P1 | User's choice: exam-realism over open-ended |
-| ⬜ | Feedback timing toggle (user chooses per session): gentle per-turn nudges OR clean end-of-session report | P1 | |
-| ⬜ | End-of-session report scored on real oral-exam dimensions | P0 | Fluency, accuracy, spontaneity, interaction, vocabulary range, task completion — with examples from what the user said + corrected versions |
-| ⬜ | Store speaking sessions in `exercise_log` (exercise_type `speaking_conversation`) | P1 | Replaces old `speaking_read` / `speaking_prompt` types |
+| ✅ | Remove old read-aloud + word-anchored speaking exercises | P0 | Clean removal before rebuild |
+| ✅ | Conversational session engine: Claude as examiner/partner, German-only, multi-turn | P0 | Fully free conversation — no target words. Claude simplifies its German at A1/A2 so immersive ≠ incomprehensible |
+| ✅ | Level-appropriate task types matched to real oral-exam formats | P0 | A1/A2: self-intro + everyday Q&A · B1: describe/narrate + opinion · B2: discuss/argue, Claude takes a counter-position · C1: present + problem-solve |
+| ✅ | Exam-like fixed turn count (~5–6 turns), then session ends | P1 | User's choice: exam-realism over open-ended |
+| ✅ | Feedback timing toggle (user chooses per session): gentle per-turn nudges OR clean end-of-session report | P1 | |
+| ✅ | End-of-session report scored on real oral-exam dimensions | P0 | Fluency, accuracy, spontaneity, interaction, vocabulary range, task completion — with examples from what the user said + corrected versions |
+| ✅ | Store speaking sessions in `exercise_log` (exercise_type `speaking_conversation`) | P1 | Replaces old `speaking_read` / `speaking_prompt` types |
 
 ## Phase 13 — Activities Fixes (revises Phase 10)
 

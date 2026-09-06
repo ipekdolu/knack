@@ -32,9 +32,12 @@ export const exerciseTypeEnum = pgEnum("exercise_type", [
   "fill_blank",
   "sentence",
   "scenario",
+  // speaking_read/speaking_prompt are retired (Phase 12) but kept in the
+  // enum since old exercise_log rows still reference them.
   "speaking_read",
   "speaking_prompt",
   "reading",
+  "speaking_conversation",
 ]);
 
 export const words = pgTable("words", {

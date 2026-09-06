@@ -71,6 +71,13 @@
       "when": 1788720000000,
       "tag": "0009_missions_points_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788724624128,
+      "tag": "0010_tricky_annihilus",
+      "breakpoints": true
     }
   ]
 }

@@ -32,22 +32,13 @@ export default function ActivitiesPage() {
         </Link>
 
         <Link
-          href="/activities/speak/read"
+          href="/activities/speak"
           className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
         >
-          <p className="font-medium">Read aloud</p>
+          <p className="font-medium">Speaking</p>
           <p className="text-sm text-gray-500">
-            Say a sentence out loud and see how much was heard correctly.
-          </p>
-        </Link>
-
-        <Link
-          href="/activities/speak/prompt"
-          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
-        >
-          <p className="font-medium">Speaking prompt</p>
-          <p className="text-sm text-gray-500">
-            Answer a question out loud using a few target words.
+            A free-flowing spoken conversation, exam-style -- no target
+            words, just talk.
           </p>
         </Link>
 

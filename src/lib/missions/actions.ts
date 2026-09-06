@@ -54,7 +54,10 @@ const MISSION_CATALOG: MissionCatalogEntry[] = [
     type: "speaking_x1",
     label: "Complete a speaking exercise",
     targetCount: 1,
-    exerciseTypes: ["speaking_read", "speaking_prompt"],
+    // Phase 12 replaced speaking_read/speaking_prompt with a single
+    // conversational exercise type -- old rows under the retired types
+    // still exist in exercise_log but nothing logs them anymore.
+    exerciseTypes: ["speaking_conversation"],
   },
 ];
 
