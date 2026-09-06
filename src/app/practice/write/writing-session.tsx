@@ -79,11 +79,7 @@ export default function WritingSession() {
         total: s.total + 1,
       }));
       setPhase("result");
-      await logSentenceResult({
-        wordResults: result.wordResults,
-        userResponse: sentence.trim(),
-        allCorrect: result.allCorrect,
-      });
+      await logSentenceResult({ grade: result, userResponse: sentence.trim() });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to grade sentence");
       setPhase("error");
@@ -183,6 +179,9 @@ export default function WritingSession() {
                     <p className="italic text-gray-600">
                       Suggested: {grade.correctedSentence}
                     </p>
+                  )}
+                  {!grade.levelAppropriate && grade.levelNote && (
+                    <p className="text-amber-700">{grade.levelNote}</p>
                   )}
                 </div>
               )}

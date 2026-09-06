@@ -24,6 +24,8 @@ export type SentenceGrade = {
   grammarIssues: string[];
   feedback: string;
   correctedSentence: string;
+  levelAppropriate: boolean;
+  levelNote: string | null;
   allCorrect: boolean;
 };
 
@@ -52,7 +54,7 @@ export async function gradeSentence(
 
 Their sentence: "${userSentence}"
 
-For each target word, judge whether it appears in the sentence used correctly (present, correctly inflected/conjugated for its role, and used with its expected meaning). In word_results, set "lemma" to exactly one of these strings, with no article and no other formatting: ${bareLemmas.map((l) => `"${l}"`).join(", ")}. Note any grammar issues in the sentence more broadly (word order, case, conjugation, agreement, etc); return an empty array if there are none. Give brief, encouraging, specific feedback (1-2 sentences, in English). Provide a corrected or improved version of the sentence in German -- return the sentence unchanged if it's already good. Call the grade_sentence tool with your answer.`,
+For each target word, judge whether it appears in the sentence used correctly (present, correctly inflected/conjugated for its role, and used with its expected meaning). In word_results, set "lemma" to exactly one of these strings, with no article and no other formatting: ${bareLemmas.map((l) => `"${l}"`).join(", ")}. Note any grammar issues in the sentence more broadly (word order, case, conjugation, agreement, etc); return an empty array if there are none. Judge whether the sentence is appropriate for a learner at level ${levels} -- set level_appropriate to false only if it's notably below the level (trivially simple for the words involved) or reaches well beyond it in a way that produced errors, and in that case give a one-sentence level_note explaining why. Give brief, encouraging, specific feedback (1-2 sentences, in English). Provide a corrected or improved version of the sentence in German -- return the sentence unchanged if it's already good. Call the grade_sentence tool with your answer.`,
       },
     ],
     tools: [
@@ -81,8 +83,25 @@ For each target word, judge whether it appears in the sentence used correctly (p
             },
             feedback: { type: "string" },
             corrected_sentence: { type: "string" },
+            level_appropriate: {
+              type: "boolean",
+              description:
+                "Whether the sentence sits at a reasonable level for the learner.",
+            },
+            level_note: {
+              type: "string",
+              description:
+                "One sentence explaining the level judgment. Empty string when level_appropriate is true.",
+            },
           },
-          required: ["word_results", "grammar_issues", "feedback", "corrected_sentence"],
+          required: [
+            "word_results",
+            "grammar_issues",
+            "feedback",
+            "corrected_sentence",
+            "level_appropriate",
+            "level_note",
+          ],
         },
       },
     ],
@@ -98,6 +117,8 @@ For each target word, judge whether it appears in the sentence used correctly (p
     grammar_issues: string[];
     feedback: string;
     corrected_sentence: string;
+    level_appropriate: boolean;
+    level_note: string;
   };
 
   // Match graded results back to word IDs by lemma. The prompt asks for an
@@ -118,28 +139,48 @@ For each target word, judge whether it appears in the sentence used correctly (p
     grammarIssues: input.grammar_issues,
     feedback: input.feedback,
     correctedSentence: input.corrected_sentence,
+    levelAppropriate: input.level_appropriate,
+    // Level is informational only -- it never counts against the learner's
+    // mastery progress, so it's deliberately left out of allCorrect below.
+    levelNote: input.level_note?.trim() ? input.level_note.trim() : null,
     allCorrect:
       wordResults.every((r) => r.usedCorrectly) && input.grammar_issues.length === 0,
   };
 }
 
 export async function logSentenceResult(entry: {
-  wordResults: WordGrade[];
+  grade: SentenceGrade;
   userResponse: string;
-  allCorrect: boolean;
 }): Promise<void> {
   const user = await requireUser();
+  const { grade } = entry;
+
+  // Persisted as JSON rather than prose so a future review screen can render
+  // the parts separately (which words passed, what to fix) instead of having
+  // to re-parse a paragraph.
+  const feedback = JSON.stringify({
+    feedback: grade.feedback,
+    grammarIssues: grade.grammarIssues,
+    correctedSentence: grade.correctedSentence,
+    levelAppropriate: grade.levelAppropriate,
+    levelNote: grade.levelNote,
+    wordResults: grade.wordResults.map((r) => ({
+      lemma: r.lemma,
+      usedCorrectly: r.usedCorrectly,
+    })),
+  });
 
   await db.transaction(async (tx) => {
     await tx.insert(exerciseLog).values({
       userId: user.id,
-      wordIds: entry.wordResults.map((r) => r.wordId),
+      wordIds: grade.wordResults.map((r) => r.wordId),
       exerciseType: "sentence",
       userResponse: entry.userResponse,
-      score: entry.allCorrect ? 1 : 0,
+      score: grade.allCorrect ? 1 : 0,
+      feedback,
     });
 
-    for (const result of entry.wordResults) {
+    for (const result of grade.wordResults) {
       await applyProgressUpdate(tx, user.id, result.wordId, result.usedCorrectly);
     }
   });
