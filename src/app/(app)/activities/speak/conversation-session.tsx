@@ -14,6 +14,7 @@ import {
   type ConversationReport,
 } from "@/lib/practice/conversation";
 import { useSpeechRecognition } from "@/lib/speech/use-speech-recognition";
+import { useSpeechSynthesis } from "@/lib/speech/use-speech-synthesis";
 
 type Phase =
   | "loading"
@@ -48,6 +49,8 @@ export default function ConversationSession() {
   const [error, setError] = useState<string | null>(null);
 
   const speech = useSpeechRecognition();
+  const tts = useSpeechSynthesis();
+  const [muted, setMuted] = useState(false);
   const sessionId = useRef(0);
 
   useEffect(() => {
@@ -71,6 +74,19 @@ export default function ConversationSession() {
         setPhase("error");
       });
   }, []);
+
+  // Speaks each new assistant turn as it arrives -- this is a listening
+  // exercise as much as a speaking one, closer to a real oral exam where
+  // you hear the examiner rather than read them. The text bubble still
+  // stays visible alongside it.
+  useEffect(() => {
+    if (muted) return;
+    const last = messages[messages.length - 1];
+    if (last && last.role === "assistant") {
+      tts.speak(last.content);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, muted]);
 
   async function handleStart(timing: FeedbackTiming) {
     if (!level) return;
@@ -154,9 +170,22 @@ export default function ConversationSession() {
   return (
     <div className="flex flex-col gap-6">
       <div className="mx-auto w-full max-w-md">
-        <Link href="/activities" className="text-sm text-gray-500 hover:underline">
-          &larr; Back
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link href="/activities" className="text-sm text-gray-500 hover:underline">
+            &larr; Back
+          </Link>
+          {tts.supported && (phase === "chat" || phase === "sending" || phase === "grading") && (
+            <button
+              onClick={() => {
+                if (!muted) tts.stop();
+                setMuted((m) => !m);
+              }}
+              className="text-sm text-gray-500 hover:underline"
+            >
+              {muted ? "🔇 Unmute" : "🔊 Mute"}
+            </button>
+          )}
+        </div>
         <h1 className="mt-2 text-xl font-semibold">Speaking</h1>
 
         {!speech.supported && phase !== "loading" && phase !== "setup" && (
@@ -231,9 +260,18 @@ export default function ConversationSession() {
                     return (
                       <div
                         key={i}
-                        className="max-w-[85%] self-start rounded-lg bg-gray-100 px-3 py-2 text-sm"
+                        className="flex max-w-[85%] items-start gap-2 self-start rounded-lg bg-gray-100 px-3 py-2 text-sm"
                       >
-                        {m.content}
+                        <span>{m.content}</span>
+                        {tts.supported && (
+                          <button
+                            onClick={() => tts.speak(m.content)}
+                            aria-label="Play aloud"
+                            className="shrink-0 text-gray-400 hover:text-gray-700"
+                          >
+                            🔊
+                          </button>
+                        )}
                       </div>
                     );
                   }
@@ -282,7 +320,14 @@ export default function ConversationSession() {
                   <div className="flex gap-2">
                     {speech.supported && (
                       <button
-                        onClick={speech.listening ? speech.stop : speech.start}
+                        onClick={() => {
+                          if (speech.listening) {
+                            speech.stop();
+                          } else {
+                            tts.stop();
+                            speech.start();
+                          }
+                        }}
                         disabled={phase === "sending"}
                         className={`flex-1 rounded-md px-4 py-2 disabled:opacity-50 ${
                           speech.listening
