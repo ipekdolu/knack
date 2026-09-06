@@ -12,12 +12,23 @@ export default function VocabPage() {
 
       <div className="flex flex-col gap-3">
         <Link
+          href="/vocab/learn"
+          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
+        >
+          <p className="font-medium">Start learning</p>
+          <p className="text-sm text-gray-500">
+            Fresh, never-seen words at your level.
+          </p>
+        </Link>
+
+        <Link
           href="/vocab/review"
           className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
         >
           <p className="font-medium">Review</p>
           <p className="text-sm text-gray-500">
-            Flashcards for words due today, mixed with new ones.
+            Gradual, spaced-out practice: words due today, mixed with new
+            ones.
           </p>
         </Link>
 

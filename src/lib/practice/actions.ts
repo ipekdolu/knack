@@ -219,6 +219,54 @@ export async function startSession(
   return { words: shuffle(picked), level };
 }
 
+// Start Learning: never-seen words only, at the user's level, with no due
+// words mixed in -- Review already covers the due+new blend, this is for
+// someone who just wants fresh vocabulary.
+export async function getNewWords(count?: number): Promise<SessionWord[]> {
+  const user = await requireUser();
+  const level = await getEffectiveLevel(user.id);
+  if (!level) return [];
+
+  if (count === undefined) {
+    const [settingsRow] = await db
+      .select({ cardsPerSession: userSettings.cardsPerSession })
+      .from(userSettings)
+      .where(eq(userSettings.userId, user.id));
+    count = settingsRow?.cardsPerSession ?? DEFAULT_SESSION_SIZE;
+  }
+
+  const rows = await db
+    .select(sessionWordCols)
+    .from(words)
+    .leftJoin(
+      userWordProgress,
+      and(
+        eq(userWordProgress.wordId, words.id),
+        eq(userWordProgress.userId, user.id),
+      ),
+    )
+    .where(
+      and(
+        or(eq(words.source, "seed"), eq(words.userId, user.id)),
+        eq(words.level, level as Level),
+        sql`${userWordProgress.id} is null`,
+      ),
+    )
+    .orderBy(sql`random()`)
+    .limit(count);
+
+  return rows.map((row) => ({
+    wordId: row.id,
+    lemma: row.lemma,
+    level: row.level,
+    pos: row.pos,
+    gender: row.gender,
+    type: "flashcard" as const,
+    masteryStage: "new" as const,
+    isFlagged: row.isFlagged ?? false,
+  }));
+}
+
 // Difficult pool: manually flagged OR auto-flagged by weak accuracy (at
 // least 3 attempts and under 50% correct). Manual flags surface regardless
 // of accuracy -- the point is user judgment can override the average.
