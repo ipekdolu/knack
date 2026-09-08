@@ -163,7 +163,7 @@ export default function ScenarioSession() {
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {prompt.helperWords.map((hw, i) => (
-                    <Pill key={i} tone="peach" title={hw.gloss}>
+                    <Pill key={i} tone="peach">
                       {hw.word}
                       <span className="ml-1 text-peach-ink/60">({hw.gloss})</span>
                     </Pill>

@@ -123,6 +123,31 @@ const CASUAL_TOPICS = [
   "sports or staying active",
   "pets or animals",
   "music they listen to",
+  "a book they've read or want to read",
+  "their morning routine",
+  "a skill they'd like to learn",
+  "their favorite season and why",
+  "a childhood memory",
+  "coffee, tea, or another daily ritual",
+  "a city they'd love to visit",
+  "their ideal lazy Sunday",
+  "a recent small win or good news",
+  "how they met one of their friends",
+  "a tradition their family has",
+  "their relationship with cooking -- do they enjoy it or avoid it",
+  "an app or gadget they use every day",
+  "something they collect or used to collect",
+  "their go-to comfort food",
+  "a language other than German or their native one",
+  "plants, gardening, or having a green thumb (or not)",
+  "board games or video games they enjoy",
+  "a festival, market, or local event they like",
+  "how they unwind after a long day",
+  "their dream job as a kid vs. now",
+  "a habit they're trying to build or break",
+  "public transport vs. driving where they live",
+  "handwriting a letter vs. texting",
+  "their neighborhood and what makes it feel like home",
 ];
 
 function pickTopic(taskType: TaskType): string {
@@ -232,7 +257,7 @@ async function callConversationModel(args: {
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("Claude did not return a conversation turn");
+    throw new Error("Knack lost track of the conversation -- try again");
   }
   const input = toolUse.input as { reply: string; nudge: string };
   return {
@@ -354,7 +379,7 @@ Give ONE short, natural example reply in German they could say next (at their le
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("Claude did not return a hint");
+    throw new Error("Knack could not generate a hint -- try again");
   }
   return (toolUse.input as { hint: string }).hint;
 }
@@ -472,7 +497,7 @@ Call the grade_conversation tool with your answer.`,
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("Claude did not return a grading result");
+    throw new Error("Knack could not grade this -- try again");
   }
   const input = toolUse.input as {
     fluency: { score: number; note: string };

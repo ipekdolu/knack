@@ -120,7 +120,7 @@ Call the reading_content tool with your answer.`,
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("Claude did not return a reading passage");
+    throw new Error("Knack could not generate a passage -- try again");
   }
   const input = toolUse.input as {
     title: string;

@@ -27,7 +27,7 @@ export default async function AppLayout({
         <div className="mx-auto flex w-full max-w-2xl flex-nowrap items-center gap-x-2 p-4">
           <Link
             href="/home"
-            className="whitespace-nowrap font-logo text-lg font-extrabold"
+            className="whitespace-nowrap font-logo text-2xl font-extrabold"
           >
             Knack
           </Link>

@@ -128,7 +128,7 @@ For each target word, judge whether it appears in the sentence used correctly (p
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("Claude did not return a grading result");
+    throw new Error("Knack could not grade this -- try again");
   }
   const input = toolUse.input as {
     word_results: { lemma: string; used_correctly: boolean }[];
@@ -206,7 +206,7 @@ export async function getSentenceHint(words: TargetWord[]): Promise<string> {
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("Claude did not return a hint");
+    throw new Error("Knack could not generate a hint -- try again");
   }
   return (toolUse.input as { hint: string }).hint;
 }

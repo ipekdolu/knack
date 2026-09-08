@@ -5,13 +5,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // Prefers an actual German voice when the browser has one installed, but
 // falls back to whatever's available with lang="de-DE" set on the
 // utterance -- most engines will still pronounce it reasonably well.
+// Mobile OSes (iOS/Android) often ship both a compact, robotic-sounding
+// default voice and a much better "enhanced"/"premium" one for the same
+// language -- the compact one is what's picked without this, which is the
+// usual source of a "weird" mobile voice. Prefer the better one when both
+// are installed.
 function pickGermanVoice(): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis.getVoices();
-  return (
-    voices.find((v) => v.lang.toLowerCase() === "de-de") ??
-    voices.find((v) => v.lang.toLowerCase().startsWith("de")) ??
-    null
+  const germanVoices = voices.filter(
+    (v) =>
+      v.lang.toLowerCase() === "de-de" || v.lang.toLowerCase().startsWith("de"),
   );
+  if (germanVoices.length === 0) return null;
+  const enhanced = germanVoices.find((v) =>
+    /enhanced|premium|neural/i.test(v.name),
+  );
+  return enhanced ?? germanVoices[0];
 }
 
 export function useSpeechSynthesis() {
@@ -48,6 +57,9 @@ export function useSpeechSynthesis() {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "de-DE";
+    // Slightly slower than default (1.0) -- compact mobile voices in
+    // particular slur consecutive words together at full speed.
+    utterance.rate = 0.92;
     if (voiceRef.current) utterance.voice = voiceRef.current;
     utterance.onstart = () => setSpeaking(true);
     utterance.onend = () => setSpeaking(false);

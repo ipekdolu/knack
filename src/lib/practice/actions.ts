@@ -608,7 +608,7 @@ async function callFlashcardModel(word: {
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("Claude did not return flashcard content");
+    throw new Error("Knack could not generate flashcard content -- try again");
   }
   const input = toolUse.input as { example_sentence: string; gloss: string };
   return { exampleSentence: input.example_sentence, gloss: input.gloss };
@@ -688,7 +688,7 @@ Call the fill_blank_content tool with your answer.`,
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("Claude did not return a fill-in-the-blank exercise");
+    throw new Error("Knack could not generate that exercise -- try again");
   }
   const input = toolUse.input as {
     sentence: string;

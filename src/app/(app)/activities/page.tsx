@@ -19,7 +19,7 @@ export default function ActivitiesPage() {
         <LinkCard
           href="/activities/write"
           title="Sentence practice"
-          description="Write a sentence using a few target words, graded by Claude."
+          description="Write a sentence using a few target words, graded with in-context feedback."
         />
         <LinkCard
           href="/activities/speak"

@@ -137,7 +137,7 @@ Call the scenario_prompt tool with your answer.`,
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("Claude did not return a scenario");
+    throw new Error("Knack could not generate a scenario -- try again");
   }
   const input = toolUse.input as {
     situation: string;
@@ -290,7 +290,7 @@ Call the grade_scenario tool with your answer.`,
 
   const toolUse = result.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("Claude did not return a grading result");
+    throw new Error("Knack could not grade this -- try again");
   }
   const input = toolUse.input as {
     leitpunkte: { point: string; covered: boolean; note: string }[];

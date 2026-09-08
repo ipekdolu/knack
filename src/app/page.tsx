@@ -37,7 +37,7 @@ const STEPS = [
   {
     step: "3",
     title: "Get feedback, not just a score",
-    body: "Claude grades your writing and speaking with specific, in-context corrections.",
+    body: "Knack grades your writing and speaking with specific, in-context corrections.",
   },
 ];
 
@@ -55,7 +55,7 @@ export default async function LandingPage() {
   return (
     <div className="min-h-screen">
       <header className="mx-auto flex w-full max-w-4xl items-center justify-between p-4">
-        <span className="font-logo text-xl font-extrabold">Knack</span>
+        <span className="font-logo text-3xl font-extrabold">Knack</span>
         <ButtonLink href="/login" variant="secondary">
           Sign in
         </ButtonLink>
@@ -72,7 +72,7 @@ export default async function LandingPage() {
           </div>
           <Pill tone="surface">A1 &rarr; C1 &middot; free to use</Pill>
           <h1 className="max-w-2xl font-heading text-4xl font-extrabold sm:text-5xl">
-            Learn German by actually using it
+            Get the knack of German by actually using it
           </h1>
           <p className="max-w-xl text-lg font-medium text-primary-ink/80">
             Reading, writing, and speaking real sentences -- with feedback on

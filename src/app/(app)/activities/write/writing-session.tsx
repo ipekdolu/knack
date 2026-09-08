@@ -28,6 +28,7 @@ export default function WritingSession() {
   const [glosses, setGlosses] = useState<Record<string, string>>({});
   const [hint, setHint] = useState<string | null>(null);
   const [hintLoading, setHintLoading] = useState(false);
+  const [revealedWordId, setRevealedWordId] = useState<string | null>(null);
 
   function begin() {
     setPhase("loading");
@@ -159,7 +160,7 @@ export default function WritingSession() {
             <Card className="flex flex-col justify-center gap-3">
               <p className="text-sm font-medium text-text-muted">
                 Write one German sentence using all of these words:{" "}
-                <span className="font-normal">(hover a word for its meaning)</span>
+                <span className="font-normal">(tap a word for its meaning)</span>
               </p>
               <div className="flex flex-wrap gap-2">
                 {current.map((w) => {
@@ -172,11 +173,26 @@ export default function WritingSession() {
                         ? "success"
                         : "error"
                       : "neutral";
+                  const isRevealed = revealedWordId === w.wordId;
                   return (
-                    <Pill key={w.wordId} tone={tone} title={glosses[w.wordId]}>
-                      {w.gender ? `${w.gender} ` : ""}
-                      {w.lemma}
-                    </Pill>
+                    <span key={w.wordId} className="relative inline-block">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRevealedWordId(isRevealed ? null : w.wordId)
+                        }
+                      >
+                        <Pill tone={tone} className="cursor-pointer">
+                          {w.gender ? `${w.gender} ` : ""}
+                          {w.lemma}
+                        </Pill>
+                      </button>
+                      {isRevealed && glosses[w.wordId] && (
+                        <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-btn border-2 border-text bg-surface px-2 py-1 text-xs font-bold shadow-hard-sm">
+                          {glosses[w.wordId]}
+                        </span>
+                      )}
+                    </span>
                   );
                 })}
               </div>

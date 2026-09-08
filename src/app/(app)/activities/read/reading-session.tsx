@@ -52,21 +52,24 @@ function GlossedPassage({
         const key = `${keyPrefix}${i}`;
         const isPinned = pinned === key;
         return (
-          <span key={i} className="group relative inline-block">
+          <span key={i} className="relative inline-block">
             {lead}
-            <span
+            {/* A real button, not a span+CSS :hover -- on mobile Safari a
+                span with a :hover-driven sibling needs a first "phantom hover"
+                tap before a click registers, so the tooltip silently ate the
+                first tap. A button's click always fires on the first tap. */}
+            <button
+              type="button"
               onClick={() => onTogglePin(isPinned ? null : key)}
               className="cursor-pointer underline decoration-dotted decoration-accent underline-offset-4 hover:bg-accent/15"
             >
               {word}
-            </span>
-            <span
-              className={`pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-btn border-2 border-text bg-surface px-2 py-1 text-xs font-bold shadow-hard-sm ${
-                isPinned ? "block" : "hidden group-hover:block"
-              }`}
-            >
-              {gloss}
-            </span>
+            </button>
+            {isPinned && (
+              <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-btn border-2 border-text bg-surface px-2 py-1 text-xs font-bold shadow-hard-sm">
+                {gloss}
+              </span>
+            )}
             {trail}
           </span>
         );
