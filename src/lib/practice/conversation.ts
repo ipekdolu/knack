@@ -220,7 +220,10 @@ async function callConversationModel(args: {
   const anthropic = createAnthropicClient();
 
   const response = await createMessage(anthropic, {
-    model: "claude-opus-5",
+    // Sonnet, not Opus -- this fires on every turn of a live back-and-forth
+    // conversation, so latency matters more than on a one-shot grading
+    // call. Grading (below) stays on Opus, where accuracy matters most.
+    model: "claude-sonnet-5",
     max_tokens: 1024,
     system: buildSystemPrompt(
       args.taskType,

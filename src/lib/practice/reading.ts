@@ -50,7 +50,8 @@ export async function generateReadingPassage(
   const levels = [...new Set(words.map((w) => w.level))].join("/");
 
   const response = await createMessage(anthropic, {
-    model: "claude-opus-5",
+    // Sonnet -- pure generation, no judgment call to get right.
+    model: "claude-sonnet-5",
     max_tokens: 2048,
     system:
       "You write German reading passages for language learners using comprehensible-input principles (i+1: mostly familiar language with a few new words introduced in context), along with comprehension questions that test understanding, not word-recognition.",

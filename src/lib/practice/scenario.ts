@@ -83,7 +83,8 @@ export async function generateScenarioPrompt(
   const levels = [...new Set(words.map((w) => w.level))].join("/");
 
   const response = await createMessage(anthropic, {
-    model: "claude-opus-5",
+    // Sonnet for generation -- grading (below) is what needs Opus-level care.
+    model: "claude-sonnet-5",
     max_tokens: 1536,
     system:
       "You write German writing-exam tasks (Schreiben) modeled on real Goethe-Institut and telc exam formats, calibrated to CEFR levels.",

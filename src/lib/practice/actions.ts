@@ -642,7 +642,8 @@ async function callFillBlankModel(word: {
   const anthropic = createAnthropicClient();
   const wordDesc = word.gender ? `${word.gender} ${word.lemma}` : word.lemma;
   const response = await createMessage(anthropic, {
-    model: "claude-opus-5",
+    // Sonnet -- generation, not the grading path.
+    model: "claude-sonnet-5",
     max_tokens: 1024,
     system:
       "You write fill-in-the-blank exercises for a German vocabulary learning app, calibrated to CEFR levels.",
