@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import {
   startSession,
   getLevelPracticeWords,
@@ -14,6 +13,13 @@ import {
   type FlashcardContent,
   type FillBlankContent,
 } from "@/lib/practice/actions";
+import { Card } from "@/components/ui/card";
+import { Pill } from "@/components/ui/pill";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { SegmentedToggle } from "@/components/ui/segmented-toggle";
+import { AnswerOption, type AnswerState } from "@/components/ui/answer-option";
+import { ExerciseTopBar } from "@/components/ui/exercise-top-bar";
+import { MascotPlaceholder } from "@/components/ui/mascot-placeholder";
 
 type Phase = "loading" | "front" | "result" | "complete" | "error";
 type Content = FlashcardContent | FillBlankContent;
@@ -32,32 +38,34 @@ const STAGE_LABEL: Record<string, string> = {
   learning: "Learning",
   mastered: "Mastered",
 };
-const STAGE_CLASSES: Record<string, string> = {
-  new: "bg-gray-100 text-gray-600",
-  learning: "bg-amber-100 text-amber-700",
-  mastered: "bg-green-100 text-green-700",
-};
+const STAGE_TONE = {
+  new: "neutral",
+  learning: "accent",
+  mastered: "success",
+} as const;
 
 export default function ExerciseSession({
   type,
   title,
-  showAddWord = false,
   // This component backs both a Vocab space (flashcards) and an Activities
   // one (fill-blank), so where "back" goes depends on the caller.
   backHref = "/activities",
   // Difficult Words reuses this component with its own word pool instead of
-  // the default due+new mix from startSession.
+  // the default due+new mix from startSession. Its words are all
+  // already-seen, so "new" there means "keeps resetting," not "unseen" --
+  // relabeled accordingly.
   loadWords,
   emptyMessage,
   showFlagButton = false,
+  relabelNewAsStruggling = false,
 }: {
   type: ExerciseType;
   title: string;
-  showAddWord?: boolean;
   backHref?: string;
   loadWords?: () => Promise<SessionWord[]>;
   emptyMessage?: string;
   showFlagButton?: boolean;
+  relabelNewAsStruggling?: boolean;
 }) {
   const [queue, setQueue] = useState<SessionWord[]>([]);
   const [index, setIndex] = useState(0);
@@ -176,8 +184,12 @@ export default function ExerciseSession({
       setPhase("loading");
       ensureFetched(index, queue);
     }
-    // Prefetch the next card while this one is being viewed/answered.
+    // Prefetch two cards ahead, not just one -- a single card of lead time
+    // wasn't enough buffer against generation latency for anyone answering
+    // quickly (multiple choice especially), which showed up as "Generating
+    // exercise..." reappearing partway through a session.
     ensureFetched(index + 1, queue);
+    ensureFetched(index + 2, queue);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queue, index]);
 
@@ -259,96 +271,76 @@ export default function ExerciseSession({
     begin(source);
   }
 
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="mx-auto w-full max-w-md">
-        <div className="flex items-center justify-between">
-          <Link href={backHref} className="text-sm text-gray-500 hover:underline">
-            &larr; Back
-          </Link>
-          {showAddWord && (
-            <Link
-              href="/vocab/add"
-              className="text-sm text-gray-500 hover:underline"
-            >
-              + Create a flashcard
-            </Link>
-          )}
-        </div>
-        <h1 className="mt-2 text-xl font-semibold">{title}</h1>
+  // Difficult Words only ever shows already-seen words, but a word that
+  // keeps getting missed also keeps getting reset to the "new" stage (see
+  // applyProgressUpdate) -- "Struggling" is the accurate read there.
+  function stageLabel(stage: string): string {
+    return relabelNewAsStruggling && stage === "new"
+      ? "Struggling"
+      : STAGE_LABEL[stage];
+  }
 
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="mx-auto w-full max-w-md">
+        <ExerciseTopBar
+          backHref={backHref}
+          typeLabel={title}
+          level={current?.level}
+          status={
+            queue.length > 0 ? `${Math.min(index + 1, queue.length)} / ${queue.length}` : undefined
+          }
+        />
         {showVocabToggle && (
-          <div className="mt-3 flex gap-1 rounded-md border border-gray-300 p-1 text-sm">
-            {(
-              [
-                { value: "level_practice", label: "Level practice" },
-                { value: "my_words", label: "My words" },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => handleVocabSourceChange(opt.value)}
-                className={`flex-1 rounded px-3 py-1.5 ${
-                  vocabSource === opt.value
-                    ? "bg-black text-white"
-                    : "text-gray-500 hover:bg-gray-100"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div className="mt-3">
+            <SegmentedToggle
+              options={
+                [
+                  { value: "level_practice", label: "Level practice" },
+                  { value: "my_words", label: "My words" },
+                ] as const
+              }
+              value={vocabSource}
+              onChange={handleVocabSourceChange}
+            />
           </div>
         )}
 
         {showVocabToggle && (
-          <div className="mt-2 flex gap-1 rounded-md border border-gray-300 p-1 text-sm">
-            {(
-              [
-                { value: "choice", label: "Multiple choice" },
-                { value: "type", label: "Type the answer" },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setAnswerMode(opt.value)}
-                className={`flex-1 rounded px-3 py-1.5 ${
-                  answerMode === opt.value
-                    ? "bg-black text-white"
-                    : "text-gray-500 hover:bg-gray-100"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div className="mt-2">
+            <SegmentedToggle
+              options={
+                [
+                  { value: "choice", label: "Multiple choice" },
+                  { value: "type", label: "Type the answer" },
+                ] as const
+              }
+              value={answerMode}
+              onChange={setAnswerMode}
+            />
           </div>
         )}
 
         {phase === "error" && (
           <div className="mt-4 flex flex-col gap-3">
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="rounded-btn border-2 border-error bg-error/10 px-3 py-2 text-sm font-medium text-error">
               {error}
             </p>
             <div className="flex gap-2">
               {queue.length > 0 && index < queue.length && (
-                <button
-                  onClick={advance}
-                  className="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
-                >
+                <Button variant="secondary" onClick={advance}>
                   Skip word
-                </button>
+                </Button>
               )}
-              <Link
-                href="/settings"
-                className="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
-              >
+              <ButtonLink href="/settings" variant="secondary">
                 Change level
-              </Link>
+              </ButtonLink>
             </div>
           </div>
         )}
 
         {phase === "loading" && (
-          <p className="mt-4 text-gray-500">
+          <p className="mt-4 font-medium text-primary-ink/70">
             {queue.length === 0 ? "Loading session..." : "Generating exercise..."}
           </p>
         )}
@@ -358,83 +350,73 @@ export default function ExerciseSession({
           content &&
           (phase === "front" || phase === "result") && (
           <div className="mt-4 flex flex-col gap-4">
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <span>
-                {index + 1} / {queue.length} &middot; {current.level}
-              </span>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`rounded-full px-2 py-0.5 font-medium ${STAGE_CLASSES[current.masteryStage]}`}
+            <div className="flex items-center justify-end gap-2">
+              <Pill tone={STAGE_TONE[current.masteryStage]}>
+                {stageLabel(current.masteryStage)}
+              </Pill>
+              {showFlagButton && (
+                <button
+                  type="button"
+                  onClick={handleToggleFlag}
+                  disabled={flagging}
+                  aria-label={
+                    current.isFlagged
+                      ? "Unmark as difficult"
+                      : "Mark as difficult"
+                  }
+                  className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-lg leading-none transition active:scale-95 ${
+                    current.isFlagged
+                      ? "border-text bg-accent text-white"
+                      : "border-text/30 bg-surface text-text/50 hover:border-accent hover:text-accent"
+                  }`}
                 >
-                  {STAGE_LABEL[current.masteryStage]}
-                </span>
-                {showFlagButton && (
-                  <button
-                    type="button"
-                    onClick={handleToggleFlag}
-                    disabled={flagging}
-                    aria-label={
-                      current.isFlagged
-                        ? "Unmark as difficult"
-                        : "Mark as difficult"
-                    }
-                    className={`text-lg leading-none ${current.isFlagged ? "text-amber-500" : "text-gray-300 hover:text-amber-500"}`}
-                  >
-                    {current.isFlagged ? "★" : "☆"}
-                  </button>
-                )}
-              </div>
+                  {current.isFlagged ? "★" : "☆"}
+                </button>
+              )}
             </div>
-            <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-gray-300 p-6 text-center">
-              <p className="text-2xl font-semibold">
+            <Card className="flex min-h-52 flex-col items-center justify-center text-center">
+              <p className="w-full break-words font-heading text-3xl font-extrabold [overflow-wrap:anywhere]">
                 {current.gender ? `${current.gender} ` : ""}
                 {current.lemma}
               </p>
               {phase === "result" && (
-                <div className="mt-4 flex flex-col gap-2 text-left">
-                  <p className="italic text-gray-700">
+                <div className="mt-4 flex w-full flex-col items-start gap-3 text-left">
+                  <p className="text-base font-medium italic text-text">
                     {(content as FlashcardContent).exampleSentence}
                   </p>
-                  <p className="text-sm text-gray-500">
-                    {(content as FlashcardContent).gloss}
-                  </p>
+                  <div className="w-fit max-w-full rounded-btn bg-peach/40 px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-peach-ink/70">
+                      Meaning
+                    </p>
+                    <p className="text-sm font-bold text-peach-ink">
+                      {(content as FlashcardContent).gloss}
+                    </p>
+                  </div>
                 </div>
               )}
-            </div>
+            </Card>
 
             {phase === "front" && (
-              <button
-                onClick={() => setPhase("result")}
-                className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-              >
-                Show answer
-              </button>
+              <Button onClick={() => setPhase("result")}>Show answer</Button>
             )}
 
             {phase === "result" && score.total === index && (
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="secondary"
+                  className="flex-1"
                   onClick={() => handleFlashcardGrade(false)}
-                  className="flex-1 rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
                 >
                   Didn&apos;t know it
-                </button>
-                <button
-                  onClick={() => handleFlashcardGrade(true)}
-                  className="flex-1 rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-                >
+                </Button>
+                <Button className="flex-1" onClick={() => handleFlashcardGrade(true)}>
                   Knew it
-                </button>
+                </Button>
               </div>
             )}
 
             {phase === "result" && score.total > index && (
-              <button
-                onClick={advance}
-                className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-              >
-                Next
-              </button>
+              <Button onClick={advance}>Next</Button>
             )}
           </div>
         )}
@@ -444,45 +426,40 @@ export default function ExerciseSession({
           content &&
           (phase === "front" || phase === "result") && (
           <div className="mt-4 flex flex-col gap-4">
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <span>
-                {index + 1} / {queue.length} &middot; {current.level}
-              </span>
-              <span
-                className={`rounded-full px-2 py-0.5 font-medium ${STAGE_CLASSES[current.masteryStage]}`}
-              >
-                {STAGE_LABEL[current.masteryStage]}
-              </span>
+            <div className="flex items-center justify-end">
+              <Pill tone={STAGE_TONE[current.masteryStage]}>
+                {stageLabel(current.masteryStage)}
+              </Pill>
             </div>
-            <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-gray-300 p-6 text-center">
-              <p className="text-lg">{(content as FillBlankContent).sentence}</p>
-            </div>
+            <Card className="flex min-h-40 flex-col justify-center gap-1 text-left">
+              <p className="text-sm font-medium text-text-muted">
+                Complete the sentence
+              </p>
+              <p className="text-lg font-bold">
+                {(content as FillBlankContent).sentence}
+              </p>
+            </Card>
 
             {answerMode === "choice" ? (
-              <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {(content as FillBlankContent).options.map((option) => {
                   const isSelected = selected === option;
                   const isCorrectOption =
                     option === (content as FillBlankContent).correctAnswer;
                   const showFeedback = phase === "result";
-                  let classes =
-                    "rounded-md border px-4 py-2 text-left hover:bg-gray-100 border-gray-300";
-                  if (showFeedback && isCorrectOption) {
-                    classes =
-                      "rounded-md border px-4 py-2 text-left border-green-500 bg-green-50 text-green-800";
-                  } else if (showFeedback && isSelected && !isCorrectOption) {
-                    classes =
-                      "rounded-md border px-4 py-2 text-left border-red-500 bg-red-50 text-red-800";
-                  }
+                  let state: AnswerState = "default";
+                  if (showFeedback && isCorrectOption) state = "correct";
+                  else if (showFeedback && isSelected && !isCorrectOption)
+                    state = "incorrect";
                   return (
-                    <button
+                    <AnswerOption
                       key={option}
+                      state={state}
                       disabled={phase === "result"}
                       onClick={() => handleFillBlankSelect(option)}
-                      className={classes}
                     >
                       {option}
-                    </button>
+                    </AnswerOption>
                   );
                 })}
               </div>
@@ -496,62 +473,47 @@ export default function ExerciseSession({
                   value={typedAnswer}
                   onChange={(e) => setTypedAnswer(e.target.value)}
                   placeholder="Fehlendes Wort..."
-                  className="rounded-md border border-gray-300 px-3 py-2"
+                  className="rounded-btn border-[2.5px] border-text px-4 py-3 font-medium shadow-hard-sm focus:outline-none"
                   autoFocus
                 />
-                <button
-                  type="submit"
-                  disabled={!typedAnswer.trim()}
-                  className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800 disabled:opacity-50"
-                >
+                <Button type="submit" disabled={!typedAnswer.trim()}>
                   Submit
-                </button>
+                </Button>
               </form>
             ) : (
-              <div
-                className={`rounded-md border px-4 py-2 text-left ${
+              <Card
+                shadow="shadow-hard-sm"
+                className={
                   typedAnswer.trim().toLowerCase() ===
                   (content as FillBlankContent).correctAnswer.toLowerCase()
-                    ? "border-green-500 bg-green-50 text-green-800"
-                    : "border-red-500 bg-red-50 text-red-800"
-                }`}
+                    ? "border-success bg-success/10"
+                    : "border-error bg-error/10"
+                }
               >
                 <p>Your answer: {typedAnswer}</p>
-                <p className="mt-1 font-medium">
+                <p className="mt-1 font-bold">
                   Correct answer: {(content as FillBlankContent).correctAnswer}
                 </p>
-              </div>
+              </Card>
             )}
 
-            {phase === "result" && (
-              <button
-                onClick={advance}
-                className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-              >
-                Next
-              </button>
-            )}
+            {phase === "result" && <Button onClick={advance}>Next</Button>}
           </div>
         )}
 
         {phase === "complete" && (
-          <div className="mt-4 flex flex-col gap-4 text-center">
-            <p className="text-lg">
+          <div className="mt-4 flex flex-col items-center gap-4 text-center">
+            <MascotPlaceholder alt="Potato mascot celebrating" size={72} />
+            <p className="font-heading text-lg font-extrabold">
               Session complete: {score.correct} / {score.total} correct
             </p>
             <div className="flex gap-2">
-              <Link
-                href="/home"
-                className="flex-1 rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
-              >
+              <ButtonLink href="/home" variant="secondary" className="flex-1">
                 Home
-              </Link>
-              <button
-                onClick={() => begin()}
-                className="flex-1 rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-              >
+              </ButtonLink>
+              <Button className="flex-1" onClick={() => begin()}>
                 Practice again
-              </button>
+              </Button>
             </div>
           </div>
         )}

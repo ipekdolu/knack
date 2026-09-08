@@ -78,6 +78,27 @@
       "when": 1788724624128,
       "tag": "0010_tricky_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788792337196,
+      "tag": "0011_premium_red_ghost",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788872074208,
+      "tag": "0012_fresh_moon_knight",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788872100000,
+      "tag": "0013_generation_log_rls",
+      "breakpoints": true
     }
   ]
 }

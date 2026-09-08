@@ -6,7 +6,6 @@ export default function VocabReviewPage() {
       type="flashcard"
       title="Review"
       backHref="/vocab"
-      showAddWord
       showFlagButton
     />
   );

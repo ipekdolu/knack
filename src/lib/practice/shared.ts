@@ -8,6 +8,29 @@ export type MasteryStage = (typeof masteryStageEnum.enumValues)[number];
 
 export const LEVEL_ORDER = ["A1", "A2", "B1", "B2", "C1"];
 
+const DAY_MS_FOR_STREAK = 24 * 60 * 60 * 1000;
+
+export function computeStreak(practiceDays: Set<string>): number {
+  const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+  let cursor = new Date();
+  cursor = new Date(
+    Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate()),
+  );
+
+  // Don't break the streak just because today hasn't happened yet -- start
+  // counting from yesterday if today has no exercises logged.
+  if (!practiceDays.has(dayKey(cursor))) {
+    cursor = new Date(cursor.getTime() - DAY_MS_FOR_STREAK);
+  }
+
+  let streak = 0;
+  while (practiceDays.has(dayKey(cursor))) {
+    streak++;
+    cursor = new Date(cursor.getTime() - DAY_MS_FOR_STREAK);
+  }
+  return streak;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MASTERED_INTERVAL_MS = 7 * DAY_MS;
 const LEARNING_INTERVAL_MS = 1 * DAY_MS;
@@ -30,7 +53,7 @@ export function shuffle<T>(items: T[]): T[] {
   return arr;
 }
 
-function nextMasteryStage(
+export function nextMasteryStage(
   currentStage: MasteryStage,
   correct: boolean,
   correctStreak: number,

@@ -1,68 +1,41 @@
-import Link from "next/link";
+import { LinkCard } from "@/components/ui/link-card";
 
 export default function ActivitiesPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold">Activities</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="font-heading text-2xl font-extrabold">Activities</h1>
+        <p className="mt-1 text-sm text-primary-ink/70">
           Put the words to work. Choose an activity.
         </p>
       </div>
 
       <div className="flex flex-col gap-3">
-        <Link
+        <LinkCard
           href="/activities/fill-blank"
-          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
-        >
-          <p className="font-medium">Fill in the blank</p>
-          <p className="text-sm text-gray-500">
-            Pick the right word to complete a sentence.
-          </p>
-        </Link>
-
-        <Link
+          title="Fill in the blank"
+          description="Pick the right word to complete a sentence."
+        />
+        <LinkCard
           href="/activities/write"
-          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
-        >
-          <p className="font-medium">Sentence practice</p>
-          <p className="text-sm text-gray-500">
-            Write a sentence using a few target words, graded by Claude.
-          </p>
-        </Link>
-
-        <Link
+          title="Sentence practice"
+          description="Write a sentence using a few target words, graded by Claude."
+        />
+        <LinkCard
           href="/activities/speak"
-          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
-        >
-          <p className="font-medium">Speaking</p>
-          <p className="text-sm text-gray-500">
-            A free-flowing spoken conversation, exam-style -- no target
-            words, just talk.
-          </p>
-        </Link>
-
-        <Link
+          title="Speaking"
+          description="A free-flowing spoken conversation, exam-style -- no target words, just talk."
+        />
+        <LinkCard
           href="/activities/scenario"
-          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
-        >
-          <p className="font-medium">Scenario writing</p>
-          <p className="text-sm text-gray-500">
-            Respond to a real-world scenario in German. Graded on tone and
-            structure, not just vocabulary.
-          </p>
-        </Link>
-
-        <Link
+          title="Scenario writing"
+          description="Respond to a real-world scenario in German. Graded on tone and structure, not just vocabulary."
+        />
+        <LinkCard
           href="/activities/read"
-          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
-        >
-          <p className="font-medium">Reading</p>
-          <p className="text-sm text-gray-500">
-            Read a short passage, then answer comprehension questions and
-            spot the target words.
-          </p>
-        </Link>
+          title="Reading"
+          description="Read a short passage, then answer comprehension questions and spot the target words."
+        />
       </div>
     </div>
   );

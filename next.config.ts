@@ -29,7 +29,6 @@ const nextConfig: NextConfig = {
         destination: "/activities/:slug",
         permanent: false,
       },
-      { source: "/words/add", destination: "/vocab/add", permanent: false },
     ];
   },
 };

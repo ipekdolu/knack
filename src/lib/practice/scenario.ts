@@ -1,12 +1,11 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/db";
 import { exerciseLog } from "@/db/schema";
 import { requireUser } from "./shared";
 import type { TargetWord } from "./grading";
-
-export type Register = "du" | "Sie";
+import { createAnthropicClient, createMessage } from "@/lib/claude/client";
+import { enforceDailyLimit } from "./rate-limit";
 
 export type HelperWord = {
   word: string;
@@ -15,10 +14,11 @@ export type HelperWord = {
 
 export type ScenarioPrompt = {
   // The full task text, in German, as a real Schreiben task would present
-  // it: situation + who you're writing to.
+  // it: situation + who you're writing to. Register (du/Sie) is
+  // deliberately not dictated -- the learner reads the situation and
+  // recipient and decides for themselves, same as a real writing task.
   situation: string;
   recipient: string;
-  register: Register;
   leitpunkte: string[];
   // Hidden by default in the UI -- optional vocabulary, not required, and
   // revealing the answer isn't the point of offering it.
@@ -45,7 +45,10 @@ export type ScenarioCorrection = {
 
 export type ScenarioGrade = {
   leitpunkte: LeitpunktCoverage[];
-  registerCorrect: boolean;
+  // Not "did they use the register we told them to" -- there's no
+  // mandate. Just: did they pick one (du or Sie) and stay consistent,
+  // instead of mixing formal and informal address.
+  registerConsistent: boolean;
   registerNote: string | null;
   criteria: {
     // Kommunikative Zielerreichung/Erfüllung -- did the response actually
@@ -70,15 +73,16 @@ const PASS_THRESHOLD = 60;
 export async function generateScenarioPrompt(
   words: TargetWord[],
 ): Promise<ScenarioPrompt> {
-  await requireUser();
+  const user = await requireUser();
+  await enforceDailyLimit(user.id, "scenario");
 
-  const anthropic = new Anthropic();
+  const anthropic = createAnthropicClient();
   const wordList = words
     .map((w) => (w.gender ? `${w.gender} ${w.lemma}` : w.lemma))
     .join(", ");
   const levels = [...new Set(words.map((w) => w.level))].join("/");
 
-  const response = await anthropic.messages.create({
+  const response = await createMessage(anthropic, {
     model: "claude-opus-5",
     max_tokens: 1536,
     system:
@@ -89,9 +93,8 @@ export async function generateScenarioPrompt(
         content: `Write one realistic German writing task for a CEFR level ${levels} learner, modeled on a real Goethe/telc Schreiben task (e.g. an email or letter responding to a everyday situation -- a complaint, an invitation, an apology, a request, asking for information, etc).
 
 Requirements:
-- "situation": the task text itself, IN GERMAN, describing the situation the learner is responding to (who they are, what happened, what they need to write). Do not list the Leitpunkte inside this text -- they're shown separately.
+- "situation": the task text itself, IN GERMAN, describing the situation the learner is responding to (who they are, what happened, what they need to write). Do not list the Leitpunkte inside this text -- they're shown separately. Do not tell the learner which register (du/Sie) to use -- that's their call to make from the situation, same as a real task.
 - "recipient": a short German description of who the letter/email is to (e.g. "Ihre Vermieterin", "dein Freund Max", "die Kundenservice-Abteilung").
-- "register": "du" if the recipient is a friend/family/someone the learner would naturally address informally, "Sie" if it's an institution, company, stranger, or formal relationship -- this must be unambiguous so it's testable.
 - "leitpunkte": exactly 3-4 content points in German, in the imperative/infinitive style real exams use (e.g. "Beschreiben Sie das Problem", "Fragen Sie nach einer Lösung"), that the learner's response must address. These are the actual grading checklist, so make each one distinct and concretely checkable.
 - "helper_words": 5-8 German words or short phrases relevant to the topic (each with a short English gloss) that could help someone write the response, but are NOT required and are not needed to complete any Leitpunkt. Where they fit naturally, prefer drawing from this word list the learner has been studying: ${wordList || "(none provided)"}.
 
@@ -107,7 +110,6 @@ Call the scenario_prompt tool with your answer.`,
           properties: {
             situation: { type: "string" },
             recipient: { type: "string" },
-            register: { type: "string", enum: ["du", "Sie"] },
             leitpunkte: {
               type: "array",
               items: { type: "string" },
@@ -126,13 +128,7 @@ Call the scenario_prompt tool with your answer.`,
               description: "5-8 optional helper words with English glosses.",
             },
           },
-          required: [
-            "situation",
-            "recipient",
-            "register",
-            "leitpunkte",
-            "helper_words",
-          ],
+          required: ["situation", "recipient", "leitpunkte", "helper_words"],
         },
       },
     ],
@@ -146,7 +142,6 @@ Call the scenario_prompt tool with your answer.`,
   const input = toolUse.input as {
     situation: string;
     recipient: string;
-    register: Register;
     leitpunkte: string[];
     helper_words: { word: string; gloss: string }[];
   };
@@ -154,7 +149,6 @@ Call the scenario_prompt tool with your answer.`,
   return {
     situation: input.situation,
     recipient: input.recipient,
-    register: input.register,
     leitpunkte: input.leitpunkte,
     helperWords: input.helper_words,
   };
@@ -164,11 +158,12 @@ export async function gradeScenario(
   prompt: ScenarioPrompt,
   response: string,
 ): Promise<ScenarioGrade> {
-  await requireUser();
+  const user = await requireUser();
+  await enforceDailyLimit(user.id, "scenario_grade");
 
-  const anthropic = new Anthropic();
+  const anthropic = createAnthropicClient();
 
-  const result = await anthropic.messages.create({
+  const result = await createMessage(anthropic, {
     model: "claude-opus-5",
     max_tokens: 2048,
     system:
@@ -179,7 +174,7 @@ export async function gradeScenario(
         content: `A learner was given this German writing task:
 
 Situation: "${prompt.situation}"
-Recipient: ${prompt.recipient} (expected register: ${prompt.register})
+Recipient: ${prompt.recipient}
 Leitpunkte (content points that must be addressed):
 ${prompt.leitpunkte.map((p, i) => `${i + 1}. ${p}`).join("\n")}
 
@@ -190,7 +185,7 @@ Grade this exactly as a Goethe/telc examiner would, on these four official crite
 1. Kommunikative Erfüllung (erfuellung): did the response address every Leitpunkt and actually fit the situation and recipient? For EACH Leitpunkt listed above, judge separately whether it was covered (covered: true/false) and give a one-sentence note citing what the learner wrote (or didn't). Score this criterion based on how completely and appropriately the Leitpunkte were addressed overall.
 2. Kohärenz (kohaerenz): organization, logical flow, appropriate connectors (e.g. deshalb, außerdem, trotzdem), whether it reads as a coherent letter/email rather than disconnected sentences.
 3. Wortschatz (wortschatz): range and appropriateness of vocabulary for the level and topic -- variety, not just repetition of the same words.
-4. Korrektheit (korrektheit): grammatical accuracy -- word order, case, verb conjugation, agreement. Also judge register here: does the learner consistently use ${prompt.register === "du" ? "du/dich/dein (informal)" : "Sie/Ihnen/Ihr (formal)"} as this situation requires, with no informal/formal mixing? Set register_correct to false and explain in register_note (citing the specific words) if they used the wrong register anywhere, even partially correctly elsewhere.
+4. Korrektheit (korrektheit): grammatical accuracy -- word order, case, verb conjugation, agreement. The learner was NOT told which register to use -- that was their own choice given the situation and recipient. So instead of checking against a mandated register, judge whether their chosen register (du OR Sie) is a reasonable fit for the recipient, and whether they used it CONSISTENTLY throughout without mixing du and Sie forms. Set register_consistent to false and explain in register_note (citing the specific words) only if they mixed registers or their choice doesn't fit the recipient at all -- not merely because they picked the less formal option when either could work.
 
 For each criterion return a score out of ${POINTS_PER_CRITERION} and a one-to-two sentence note citing specific evidence from the response.
 
@@ -222,10 +217,10 @@ Call the grade_scenario tool with your answer.`,
               description:
                 "One entry per Leitpunkt given, in the same order, each citing evidence.",
             },
-            register_correct: { type: "boolean" },
+            register_consistent: { type: "boolean" },
             register_note: {
               type: "string",
-              description: "Empty string if register_correct is true.",
+              description: "Empty string if register_consistent is true.",
             },
             erfuellung: {
               type: "object",
@@ -278,7 +273,7 @@ Call the grade_scenario tool with your answer.`,
           },
           required: [
             "leitpunkte",
-            "register_correct",
+            "register_consistent",
             "register_note",
             "erfuellung",
             "kohaerenz",
@@ -299,7 +294,7 @@ Call the grade_scenario tool with your answer.`,
   }
   const input = toolUse.input as {
     leitpunkte: { point: string; covered: boolean; note: string }[];
-    register_correct: boolean;
+    register_consistent: boolean;
     register_note: string;
     erfuellung: { score: number; note: string };
     kohaerenz: { score: number; note: string };
@@ -340,7 +335,7 @@ Call the grade_scenario tool with your answer.`,
 
   return {
     leitpunkte: input.leitpunkte,
-    registerCorrect: input.register_correct,
+    registerConsistent: input.register_consistent,
     registerNote: input.register_note?.trim() ? input.register_note.trim() : null,
     criteria,
     totalScore,
@@ -363,7 +358,7 @@ export async function logScenarioResult(entry: {
   // applyProgressUpdate the way sentence-writing's required words do.
   const feedback = JSON.stringify({
     leitpunkte: grade.leitpunkte,
-    registerCorrect: grade.registerCorrect,
+    registerConsistent: grade.registerConsistent,
     registerNote: grade.registerNote,
     criteria: grade.criteria,
     totalScore: grade.totalScore,

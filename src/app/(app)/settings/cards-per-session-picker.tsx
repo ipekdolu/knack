@@ -35,18 +35,20 @@ export default function CardsPerSessionPicker({
             key={count}
             onClick={() => choose(count)}
             disabled={saving}
-            className={`rounded-md border px-4 py-2 disabled:opacity-50 ${
+            className={`rounded-btn border-[2.5px] border-text px-4 py-2 font-bold shadow-hard-sm transition active:scale-95 disabled:opacity-50 disabled:active:scale-100 ${
               selected === count
-                ? "border-black bg-black text-white"
-                : "border-gray-300 hover:bg-gray-100"
+                ? "bg-text text-primary"
+                : "bg-surface hover:bg-background/40"
             }`}
           >
             {count}
           </button>
         ))}
       </div>
-      {saving && <p className="text-sm text-gray-500">Saving...</p>}
-      {saved && !saving && <p className="text-sm text-green-600">Saved.</p>}
+      {saving && <p className="text-sm font-medium text-primary-ink/70">Saving...</p>}
+      {saved && !saving && (
+        <p className="text-sm font-bold text-success">Saved.</p>
+      )}
     </div>
   );
 }

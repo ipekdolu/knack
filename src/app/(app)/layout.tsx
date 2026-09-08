@@ -22,17 +22,23 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-gray-200">
-        <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center gap-x-4 gap-y-2 p-4">
-          <Link href="/home" className="font-semibold">
-            German Vocab
+    <div className="min-h-screen bg-background">
+      <header>
+        <div className="mx-auto flex w-full max-w-2xl flex-nowrap items-center gap-x-2 p-4">
+          <Link
+            href="/home"
+            className="whitespace-nowrap font-logo text-lg font-extrabold"
+          >
+            Knack
           </Link>
           <div className="hidden md:block">
             <AppNav />
           </div>
-          <div className="ml-auto flex items-center gap-3 text-sm">
-            <Link href="/settings" className="text-gray-500 hover:underline">
+          <div className="ml-auto flex shrink-0 items-center gap-2 text-xs">
+            <Link
+              href="/settings"
+              className="whitespace-nowrap font-bold text-primary-ink/80 hover:text-primary-ink"
+            >
               Settings
             </Link>
             <LogoutButton />

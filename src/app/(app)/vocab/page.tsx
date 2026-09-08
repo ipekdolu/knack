@@ -1,68 +1,36 @@
-import Link from "next/link";
+import { LinkCard } from "@/components/ui/link-card";
 
 export default function VocabPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold">Vocab</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="font-heading text-2xl font-extrabold">Vocabulary</h1>
+        <p className="mt-1 text-sm text-primary-ink/70">
           Meet new words and review the ones you&apos;ve seen.
         </p>
       </div>
 
       <div className="flex flex-col gap-3">
-        <Link
+        <LinkCard
           href="/vocab/learn"
-          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
-        >
-          <p className="font-medium">Start learning</p>
-          <p className="text-sm text-gray-500">
-            Fresh, never-seen words at your level.
-          </p>
-        </Link>
-
-        <Link
+          title="Start learning"
+          description="Fresh, never-seen words at your level."
+        />
+        <LinkCard
           href="/vocab/review"
-          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
-        >
-          <p className="font-medium">Review</p>
-          <p className="text-sm text-gray-500">
-            Gradual, spaced-out practice: words due today, mixed with new
-            ones.
-          </p>
-        </Link>
-
-        <Link
+          title="Review"
+          description="Gradual, spaced-out practice: words due today, mixed with new ones."
+        />
+        <LinkCard
           href="/vocab/difficult"
-          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
-        >
-          <p className="font-medium">Difficult words</p>
-          <p className="text-sm text-gray-500">
-            Words you&apos;ve starred, or that you consistently miss.
-          </p>
-        </Link>
-
-        <Link
+          title="Difficult words"
+          description="Words you've starred, or that you consistently miss."
+        />
+        <LinkCard
           href="/vocab/speed"
-          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
-        >
-          <p className="font-medium">Speed review</p>
-          <p className="text-sm text-gray-500">
-            A timed drill through as many cards as you can. Doesn&apos;t
-            affect your progress tracking.
-          </p>
-        </Link>
-
-        <Link
-          href="/vocab/add"
-          className="rounded-lg border border-gray-300 p-4 hover:bg-gray-100"
-        >
-          <p className="font-medium">Create your own flashcard</p>
-          <p className="text-sm text-gray-500">
-            Write a German word and Claude fills in its level, part of
-            speech, and gender.
-          </p>
-        </Link>
+          title="Speed review"
+          description="A timed drill through as many cards as you can. Doesn't affect your progress tracking."
+        />
       </div>
     </div>
   );

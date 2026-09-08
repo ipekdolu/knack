@@ -81,7 +81,11 @@ export function useSpeechRecognition() {
 
     const recognition = new Ctor();
     recognition.lang = "de-DE";
-    recognition.continuous = false;
+    // Without this, the browser stops listening after a single utterance
+    // (a few words, one sentence) the moment it detects a pause -- exactly
+    // the "mic closes too fast" complaint. Continuous keeps it listening
+    // across pauses until the user explicitly stops it.
+    recognition.continuous = true;
     recognition.interimResults = true;
 
     recognition.onresult = (event) => {

@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import {
-  startSession,
+  getSeenWordsWithFlashcardContent,
   generateFlashcard,
   type SessionWord,
   type FlashcardContent,
 } from "@/lib/practice/actions";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ExerciseTopBar } from "@/components/ui/exercise-top-bar";
 
 type Phase = "idle" | "preparing" | "running" | "done";
 type Card = { word: SessionWord; content: FlashcardContent };
@@ -33,16 +35,17 @@ export default function SpeedReviewSession() {
     setRevealed(false);
     setScore({ correct: 0, total: 0 });
     try {
-      const { words, level } = await startSession("flashcard", POOL_SIZE);
-      if (!level || words.length === 0) {
+      const words = await getSeenWordsWithFlashcardContent(POOL_SIZE);
+      if (words.length === 0) {
         setError(
           "No words available yet -- practice a bit first so there's a pool to drill.",
         );
         setPhase("idle");
         return;
       }
-      // Load everything up front, with no chance of a fresh generation, so
-      // the clock never waits on a Claude call mid-drill.
+      // Every word here already has cached content (see
+      // getSeenWordsWithFlashcardContent), so this is a set of fast DB
+      // reads, not Claude calls -- the clock never waits on generation.
       const loaded = await Promise.all(
         words.map(async (word) => ({
           word,
@@ -99,77 +102,73 @@ export default function SpeedReviewSession() {
 
   return (
     <div className="mx-auto w-full max-w-md">
-      <Link href="/vocab" className="text-sm text-gray-500 hover:underline">
-        &larr; Back
-      </Link>
-      <h1 className="mt-2 text-xl font-semibold">Speed review</h1>
-      <p className="mt-1 text-sm text-gray-500">
+      <ExerciseTopBar backHref="/vocab" typeLabel="Speed review" />
+      <p className="mt-2 text-sm font-medium text-primary-ink/70">
         As many as you can in {DURATION_S} seconds. This is a drill --
         it doesn&apos;t affect your progress tracking.
       </p>
 
       {error && (
-        <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="mt-4 rounded-btn border-2 border-error bg-error/10 px-3 py-2 text-sm font-medium text-error">
           {error}
         </p>
       )}
 
       {phase === "idle" && (
-        <button
-          onClick={start}
-          className="mt-4 rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-        >
+        <Button className="mt-4" onClick={start}>
           Start
-        </button>
+        </Button>
       )}
 
       {phase === "preparing" && (
-        <p className="mt-4 text-gray-500">Preparing cards...</p>
+        <p className="mt-4 font-medium text-primary-ink/70">Preparing cards...</p>
       )}
 
       {phase === "running" && current && (
         <div className="mt-4 flex flex-col gap-4">
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-primary-ink/70">
               {index + 1} / {pool.length}
-            </span>
-            <span className="font-medium">{secondsLeft}s</span>
+            </p>
+            <p
+              className={`font-heading text-3xl font-extrabold tabular-nums ${
+                secondsLeft <= 10 ? "text-error" : "text-text"
+              } ${secondsLeft <= 5 ? "animate-pulse" : ""}`}
+            >
+              {secondsLeft}s
+            </p>
           </div>
-          <div className="flex min-h-64 flex-col items-center justify-center rounded-lg border border-gray-300 p-6 text-center">
-            <p className="text-2xl font-semibold">
+          <Card className="flex min-h-52 flex-col items-center justify-center text-center">
+            <p className="w-full break-words font-heading text-3xl font-extrabold [overflow-wrap:anywhere]">
               {current.word.gender ? `${current.word.gender} ` : ""}
               {current.word.lemma}
             </p>
             {revealed && (
-              <div className="mt-4 flex flex-col gap-2 text-left">
-                <p className="italic text-gray-700">
+              <div className="mt-4 flex w-full flex-col items-start gap-3 text-left">
+                <p className="text-base font-medium italic text-text">
                   {current.content.exampleSentence}
                 </p>
-                <p className="text-sm text-gray-500">{current.content.gloss}</p>
+                <div className="w-fit max-w-full rounded-btn bg-peach/40 px-3 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-peach-ink/70">
+                    Meaning
+                  </p>
+                  <p className="text-sm font-bold text-peach-ink">
+                    {current.content.gloss}
+                  </p>
+                </div>
               </div>
             )}
-          </div>
+          </Card>
           {!revealed ? (
-            <button
-              onClick={() => setRevealed(true)}
-              className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-            >
-              Show answer
-            </button>
+            <Button onClick={() => setRevealed(true)}>Show answer</Button>
           ) : (
             <div className="flex gap-2">
-              <button
-                onClick={() => grade(false)}
-                className="flex-1 rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
-              >
+              <Button variant="secondary" className="flex-1" onClick={() => grade(false)}>
                 Didn&apos;t know it
-              </button>
-              <button
-                onClick={() => grade(true)}
-                className="flex-1 rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-              >
+              </Button>
+              <Button className="flex-1" onClick={() => grade(true)}>
                 Knew it
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -177,15 +176,10 @@ export default function SpeedReviewSession() {
 
       {phase === "done" && (
         <div className="mt-4 flex flex-col gap-4 text-center">
-          <p className="text-lg">
+          <p className="font-heading text-lg font-extrabold">
             {score.correct} / {score.total} correct
           </p>
-          <button
-            onClick={start}
-            className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-          >
-            Go again
-          </button>
+          <Button onClick={start}>Go again</Button>
         </div>
       )}
     </div>

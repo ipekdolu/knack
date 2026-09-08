@@ -3,6 +3,8 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { MascotPlaceholder } from "@/components/ui/mascot-placeholder";
 
 function LoginForm() {
   const supabase = createClient();
@@ -33,21 +35,18 @@ function LoginForm() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
-      <h1 className="text-xl font-semibold">German Vocab Practice</h1>
+      <MascotPlaceholder alt="Knack potato mascot" size={80} />
+      <h1 className="font-logo text-3xl font-extrabold">Knack</h1>
 
       {shownError && (
-        <p className="max-w-sm rounded-md bg-red-50 px-3 py-2 text-center text-sm text-red-700">
+        <p className="max-w-sm rounded-btn border-2 border-error bg-error/10 px-3 py-2 text-center text-sm font-medium text-error">
           {shownError}
         </p>
       )}
 
-      <button
-        onClick={handleLogin}
-        disabled={loading}
-        className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800 disabled:opacity-50"
-      >
+      <Button onClick={handleLogin} disabled={loading}>
         {loading ? "Redirecting..." : "Sign in with Google"}
-      </button>
+      </Button>
     </div>
   );
 }

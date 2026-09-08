@@ -1,9 +1,10 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/db";
 import { exerciseLog } from "@/db/schema";
 import { requireUser, applyProgressUpdate } from "./shared";
+import { createAnthropicClient, createMessage } from "@/lib/claude/client";
+import { enforceDailyLimit } from "./rate-limit";
 
 export type TargetWord = {
   wordId: string;
@@ -41,16 +42,17 @@ export async function gradeSentence(
   userSentence: string,
   options: GradeOptions = {},
 ): Promise<SentenceGrade> {
-  await requireUser();
+  const user = await requireUser();
+  await enforceDailyLimit(user.id, "sentence_grade");
 
-  const anthropic = new Anthropic();
+  const anthropic = createAnthropicClient();
   const wordList = words
     .map((w) => (w.gender ? `${w.gender} ${w.lemma}` : w.lemma))
     .join(", ");
   const bareLemmas = words.map((w) => w.lemma);
   const levels = [...new Set(words.map((w) => w.level))].join("/");
 
-  const response = await anthropic.messages.create({
+  const response = await createMessage(anthropic, {
     model: "claude-opus-5",
     max_tokens: 1024,
     system:
@@ -162,6 +164,51 @@ For each target word, judge whether it appears in the sentence used correctly (p
     allCorrect:
       wordResults.every((r) => r.usedCorrectly) && input.grammar_issues.length === 0,
   };
+}
+
+// A light nudge for a learner stuck on this word group -- not the answer,
+// just a starter phrase or a reminder of what one of the words means, so
+// they're unblocked without the exercise being handed to them.
+export async function getSentenceHint(words: TargetWord[]): Promise<string> {
+  const user = await requireUser();
+  await enforceDailyLimit(user.id, "sentence_hint");
+
+  const anthropic = createAnthropicClient();
+  const wordList = words
+    .map((w) => (w.gender ? `${w.gender} ${w.lemma}` : w.lemma))
+    .join(", ");
+  const levels = [...new Set(words.map((w) => w.level))].join("/");
+
+  const response = await createMessage(anthropic, {
+    model: "claude-haiku-4-5",
+    max_tokens: 256,
+    system:
+      "You give brief, encouraging hints to a German learner stuck writing a sentence. Never write the full sentence for them.",
+    messages: [
+      {
+        role: "user",
+        content: `A learner at CEFR level ${levels} is stuck writing one German sentence using all of these target words: ${wordList}. Give one short hint (max 2 sentences, in English) -- e.g. a sentence starter, a reminder of what a tricky word means, or a suggestion for how the words could relate to each other. Do not write the full sentence.`,
+      },
+    ],
+    tools: [
+      {
+        name: "give_hint",
+        description: "Record a short hint for the learner.",
+        input_schema: {
+          type: "object",
+          properties: { hint: { type: "string" } },
+          required: ["hint"],
+        },
+      },
+    ],
+    tool_choice: { type: "tool", name: "give_hint" },
+  });
+
+  const toolUse = response.content.find((b) => b.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("Claude did not return a hint");
+  }
+  return (toolUse.input as { hint: string }).hint;
 }
 
 export async function logSentenceResult(entry: {

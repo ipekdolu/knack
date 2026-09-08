@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { startSession, type SessionWord } from "@/lib/practice/actions";
 import {
   generateScenarioPrompt,
@@ -10,6 +9,10 @@ import {
   type ScenarioPrompt,
   type ScenarioGrade,
 } from "@/lib/practice/scenario";
+import { Card } from "@/components/ui/card";
+import { Pill } from "@/components/ui/pill";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { ExerciseTopBar } from "@/components/ui/exercise-top-bar";
 
 type Phase = "loading" | "generating" | "answer" | "grading" | "result" | "error";
 
@@ -115,44 +118,35 @@ export default function ScenarioSession() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="mx-auto w-full max-w-md">
-        <Link href="/activities" className="text-sm text-gray-500 hover:underline">
-          &larr; Back
-        </Link>
-        <h1 className="mt-2 text-xl font-semibold">Scenario writing</h1>
+    <div className="flex flex-col gap-4">
+      <div className="mx-auto w-full max-w-2xl">
+        <ExerciseTopBar backHref="/activities" typeLabel="Scenario writing" />
 
         {phase === "error" && (
           <div className="mt-4 flex flex-col gap-3">
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="rounded-btn border-2 border-error bg-error/10 px-3 py-2 text-sm font-medium text-error">
               {error}
             </p>
-            <Link
-              href="/settings"
-              className="w-fit rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
-            >
+            <ButtonLink href="/settings" variant="secondary" className="w-fit">
               Change level
-            </Link>
+            </ButtonLink>
           </div>
         )}
 
         {(phase === "loading" || phase === "generating") && (
-          <p className="mt-4 text-gray-500">
+          <p className="mt-4 font-medium text-primary-ink/70">
             {phase === "loading" ? "Loading session..." : "Writing a scenario..."}
           </p>
         )}
 
         {prompt && (phase === "answer" || phase === "grading" || phase === "result") && (
           <div className="mt-4 flex flex-col gap-4">
-            <div className="flex flex-col gap-3 rounded-lg border border-gray-300 p-4">
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>An: {prompt.recipient}</span>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium">
-                  {prompt.register}
-                </span>
-              </div>
-              <p>{prompt.situation}</p>
-              <ul className="list-inside list-disc text-sm text-gray-700">
+            <Card className="flex flex-col gap-3">
+              <p className="text-sm font-medium text-text-muted">
+                An: {prompt.recipient}
+              </p>
+              <p className="font-bold">{prompt.situation}</p>
+              <ul className="list-inside list-disc text-sm text-text">
                 {prompt.leitpunkte.map((point, i) => (
                   <li key={i}>{point}</li>
                 ))}
@@ -162,49 +156,40 @@ export default function ScenarioSession() {
                 <button
                   type="button"
                   onClick={() => setShowHelperWords(true)}
-                  className="w-fit text-xs text-gray-500 underline hover:text-gray-700"
+                  className="w-fit text-xs font-bold text-primary-ink underline"
                 >
-                  Wörter anzeigen, die helfen
+                  💡 Wörter anzeigen, die helfen
                 </button>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {prompt.helperWords.map((hw, i) => (
-                    <span
-                      key={i}
-                      className="rounded-full border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600"
-                      title={hw.gloss}
-                    >
+                    <Pill key={i} tone="peach" title={hw.gloss}>
                       {hw.word}
-                      <span className="ml-1 text-gray-400">({hw.gloss})</span>
-                    </span>
+                      <span className="ml-1 text-peach-ink/60">({hw.gloss})</span>
+                    </Pill>
                   ))}
                 </div>
               )}
-            </div>
+            </Card>
 
             {phase === "result" && grade && (
               <div className="flex flex-col gap-3 text-left text-sm">
-                <div className="flex items-center justify-between rounded-lg border border-gray-300 p-3">
-                  <span
-                    className={`text-lg font-semibold ${grade.passed ? "text-green-700" : "text-amber-700"}`}
-                  >
+                <Card
+                  shadow="shadow-hard-sm"
+                  className="flex items-center justify-between"
+                >
+                  <span className="font-heading text-2xl font-extrabold">
                     {grade.totalScore} / 100
                   </span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      grade.passed
-                        ? "bg-green-100 text-green-700"
-                        : "bg-amber-100 text-amber-700"
-                    }`}
-                  >
+                  <Pill tone={grade.passed ? "success" : "error"}>
                     {grade.passed ? "Bestanden" : "Nicht bestanden"}
-                  </span>
-                </div>
+                  </Pill>
+                </Card>
 
-                <p className="text-gray-700">{grade.feedback}</p>
+                <p className="text-text">{grade.feedback}</p>
 
-                {!grade.registerCorrect && grade.registerNote && (
-                  <p className="rounded-md bg-red-50 px-3 py-2 text-red-700">
+                {!grade.registerConsistent && grade.registerNote && (
+                  <p className="rounded-btn border-2 border-error bg-error/10 px-3 py-2 font-medium text-error">
                     Register: {grade.registerNote}
                   </p>
                 )}
@@ -215,26 +200,31 @@ export default function ScenarioSession() {
                   ).map((key) => {
                     const c = grade.criteria[key];
                     return (
-                      <div key={key} className="rounded-md border border-gray-200 p-2">
+                      <Card key={key} shadow="shadow-hard-sm" padding="p-3">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium">{CRITERION_LABELS[key]}</span>
-                          <span className="text-gray-500">
+                          <span className="font-bold">{CRITERION_LABELS[key]}</span>
+                          <span className="text-text-muted">
                             {c.score} / {c.maxScore}
                           </span>
                         </div>
-                        <p className="mt-1 text-gray-500">{c.note}</p>
-                      </div>
+                        <p className="mt-1 text-text-muted">{c.note}</p>
+                      </Card>
                     );
                   })}
                 </div>
 
                 <div>
-                  <p className="font-medium">Leitpunkte</p>
+                  <p className="font-bold">Leitpunkte</p>
                   <ul className="mt-1 flex flex-col gap-1">
                     {grade.leitpunkte.map((lp, i) => (
-                      <li key={i} className={lp.covered ? "text-green-700" : "text-red-700"}>
+                      <li
+                        key={i}
+                        className={lp.covered ? "text-success" : "text-error"}
+                      >
                         {lp.covered ? "✓" : "✗"} {lp.point}
-                        <span className="block text-xs text-gray-500">{lp.note}</span>
+                        <span className="block text-xs text-text-muted">
+                          {lp.note}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -242,14 +232,16 @@ export default function ScenarioSession() {
 
                 {grade.corrections.length > 0 && (
                   <div>
-                    <p className="font-medium">Corrections</p>
+                    <p className="font-bold">Corrections</p>
                     <div className="mt-1 flex flex-col gap-2">
                       {grade.corrections.map((c, i) => (
-                        <div key={i} className="rounded-md bg-gray-50 p-2">
-                          <p className="text-red-700 line-through">{c.original}</p>
-                          <p className="text-green-700">{c.corrected}</p>
-                          <p className="mt-1 text-xs text-gray-500">{c.explanation}</p>
-                        </div>
+                        <Card key={i} shadow="shadow-hard-sm" padding="p-3">
+                          <p className="text-error line-through">{c.original}</p>
+                          <p className="text-success">{c.corrected}</p>
+                          <p className="mt-1 text-xs text-text-muted">
+                            {c.explanation}
+                          </p>
+                        </Card>
                       ))}
                     </div>
                   </div>
@@ -265,33 +257,23 @@ export default function ScenarioSession() {
                   disabled={phase === "grading"}
                   placeholder="Schreib deine Antwort..."
                   rows={8}
-                  className="rounded-md border border-gray-300 px-3 py-2 disabled:opacity-50"
+                  className="rounded-btn border-[2.5px] border-text px-4 py-3 font-medium shadow-hard-sm disabled:opacity-50 focus:outline-none"
                   autoFocus
                 />
-                <button
-                  type="submit"
-                  disabled={phase === "grading" || !response.trim()}
-                  className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800 disabled:opacity-50"
-                >
-                  {phase === "grading" ? "Grading..." : "Submit"}
-                </button>
+                <Button type="submit" disabled={phase === "grading" || !response.trim()}>
+                  {phase === "grading" ? "Grading..." : "Bewerten"}
+                </Button>
               </form>
             )}
 
             {phase === "result" && (
               <div className="flex gap-2">
-                <Link
-                  href="/home"
-                  className="flex-1 rounded-md border border-gray-300 px-4 py-2 text-center hover:bg-gray-100"
-                >
+                <ButtonLink href="/home" variant="secondary" className="flex-1">
                   Home
-                </Link>
-                <button
-                  onClick={begin}
-                  className="flex-1 rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-                >
+                </ButtonLink>
+                <Button className="flex-1" onClick={begin}>
                   Another scenario
-                </button>
+                </Button>
               </div>
             )}
           </div>

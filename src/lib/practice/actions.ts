@@ -1,6 +1,5 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
 import { or, eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -14,11 +13,13 @@ import {
   requireUser,
   shuffle,
   applyProgressUpdate,
+  computeStreak,
   LEVEL_ORDER,
   type Level,
   type MasteryStage,
 } from "./shared";
-import { getOrCreateContent } from "./content-cache";
+import { createAnthropicClient, createMessage } from "@/lib/claude/client";
+import { getOrCreateContent, wordIdsWithContent } from "./content-cache";
 
 // speaking_read/speaking_prompt retired in Phase 12 -- speaking_conversation
 // replaces both, handled by its own module (conversation.ts) rather than
@@ -387,6 +388,82 @@ export async function getDifficultWords(count = 20): Promise<SessionWord[]> {
   );
 }
 
+// Speed Review: already-seen words only, and only ones that already have a
+// cached flashcard variant -- the drill is timed, so it can't afford a
+// Claude generation mid-run. A brand-new word (no progress row yet) or a
+// seen word with no cached content would still force one, so both are
+// filtered out here rather than left to getOrCreateContent's fallback.
+export async function getSeenWordsWithFlashcardContent(
+  count: number,
+): Promise<SessionWord[]> {
+  const user = await requireUser();
+  const level = await getEffectiveLevel(user.id);
+  if (!level) return [];
+
+  const scopeWhere = and(
+    or(eq(words.source, "seed"), eq(words.userId, user.id)),
+    eq(words.level, level as Level),
+  );
+
+  // A wider candidate pool than `count` since some will get filtered out
+  // for lacking cached content.
+  const seenRows = await db
+    .select(sessionWordCols)
+    .from(words)
+    .innerJoin(
+      userWordProgress,
+      and(
+        eq(userWordProgress.wordId, words.id),
+        eq(userWordProgress.userId, user.id),
+      ),
+    )
+    .where(scopeWhere)
+    .orderBy(sql`random()`)
+    .limit(count * 3);
+
+  const cachedIds = await wordIdsWithContent(
+    seenRows.map((r) => r.id),
+    "flashcard",
+  );
+  const withCache = seenRows.filter((r) => cachedIds.has(r.id));
+  const chosen = (withCache.length > 0 ? withCache : seenRows).slice(0, count);
+
+  return shuffle(
+    chosen.map((row) => ({
+      wordId: row.id,
+      lemma: row.lemma,
+      level: row.level,
+      pos: row.pos,
+      gender: row.gender,
+      type: "flashcard" as const,
+      masteryStage: row.masteryStage ?? "new",
+      isFlagged: row.isFlagged ?? false,
+    })),
+  );
+}
+
+// Meanings for a hover tooltip -- reuses the flashcard content cache
+// (same gloss shown on the flashcard back) rather than a fresh translation
+// call, so repeat lookups for the same word are instant.
+export async function getWordGlosses(
+  wordList: {
+    wordId: string;
+    lemma: string;
+    level: string;
+    pos: string;
+    gender: string | null;
+  }[],
+): Promise<Record<string, string>> {
+  await requireUser();
+  const entries = await Promise.all(
+    wordList.map(async (word) => {
+      const content = await generateFlashcard(word);
+      return [word.wordId, content.gloss] as const;
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
 export async function toggleWordFlag(wordId: string): Promise<boolean> {
   const user = await requireUser();
 
@@ -488,28 +565,6 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   };
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function computeStreak(practiceDays: Set<string>): number {
-  const dayKey = (d: Date) => d.toISOString().slice(0, 10);
-  let cursor = new Date();
-  cursor = new Date(
-    Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate()),
-  );
-
-  // Don't break the streak just because today hasn't happened yet -- start
-  // counting from yesterday if today has no exercises logged.
-  if (!practiceDays.has(dayKey(cursor))) {
-    cursor = new Date(cursor.getTime() - DAY_MS);
-  }
-
-  let streak = 0;
-  while (practiceDays.has(dayKey(cursor))) {
-    streak++;
-    cursor = new Date(cursor.getTime() - DAY_MS);
-  }
-  return streak;
-}
 
 async function callFlashcardModel(word: {
   lemma: string;
@@ -517,9 +572,9 @@ async function callFlashcardModel(word: {
   pos: string;
   gender: string | null;
 }): Promise<FlashcardContent> {
-  const anthropic = new Anthropic();
+  const anthropic = createAnthropicClient();
   const wordDesc = word.gender ? `${word.gender} ${word.lemma}` : word.lemma;
-  const response = await anthropic.messages.create({
+  const response = await createMessage(anthropic, {
     model: "claude-haiku-4-5",
     max_tokens: 1024,
     system:
@@ -584,9 +639,9 @@ async function callFillBlankModel(word: {
   pos: string;
   gender: string | null;
 }): Promise<FillBlankContent> {
-  const anthropic = new Anthropic();
+  const anthropic = createAnthropicClient();
   const wordDesc = word.gender ? `${word.gender} ${word.lemma}` : word.lemma;
-  const response = await anthropic.messages.create({
+  const response = await createMessage(anthropic, {
     model: "claude-opus-5",
     max_tokens: 1024,
     system:

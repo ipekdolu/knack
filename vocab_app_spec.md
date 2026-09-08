@@ -124,8 +124,9 @@ At end of Phase 6 the engine works but everything lives on one page. These phase
 | ⬜ | Review (flashcards for words due / in rotation) | P0 | |
 | ⬜ | Difficult Words pool (auto low-accuracy + manually flagged) | P1 | Add `is_flagged` boolean to `user_word_progress`; star button on cards |
 | ⬜ | Speed Review (fast, timed flip-through) | P1 | |
-| ⬜ | Custom flashcard creation | P1 | Ties into existing manual word-add |
 | ⬜ | User control: how many cards per session | P2 | |
+
+*(Decks / custom flashcard creation removed — decided against as unnecessary scope.)*
 
 ## Phase 10 — Activities Space + Reading ✅ (initial build — see Phase 13 revision)
 
@@ -160,26 +161,26 @@ Replaces the word-anchored Phase 6 speaking exercises with a conversational, exa
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
-| ✅ | Remove old read-aloud + word-anchored speaking exercises | P0 | Clean removal before rebuild |
-| ✅ | Conversational session engine: Claude as examiner/partner, German-only, multi-turn | P0 | Fully free conversation — no target words. Claude simplifies its German at A1/A2 so immersive ≠ incomprehensible |
-| ✅ | Level-appropriate task types matched to real oral-exam formats | P0 | A1/A2: self-intro + everyday Q&A · B1: describe/narrate + opinion · B2: discuss/argue, Claude takes a counter-position · C1: present + problem-solve |
-| ✅ | Exam-like fixed turn count (~5–6 turns), then session ends | P1 | User's choice: exam-realism over open-ended |
-| ✅ | Feedback timing toggle (user chooses per session): gentle per-turn nudges OR clean end-of-session report | P1 | |
-| ✅ | End-of-session report scored on real oral-exam dimensions | P0 | Fluency, accuracy, spontaneity, interaction, vocabulary range, task completion — with examples from what the user said + corrected versions |
-| ✅ | Store speaking sessions in `exercise_log` (exercise_type `speaking_conversation`) | P1 | Replaces old `speaking_read` / `speaking_prompt` types |
+| ⬜ | Remove old read-aloud + word-anchored speaking exercises | P0 | Clean removal before rebuild |
+| ⬜ | Conversational session engine: Claude as examiner/partner, German-only, multi-turn | P0 | Fully free conversation — no target words. Claude simplifies its German at A1/A2 so immersive ≠ incomprehensible |
+| ⬜ | Level-appropriate task types matched to real oral-exam formats | P0 | A1/A2: self-intro + everyday Q&A · B1: describe/narrate + opinion · B2: discuss/argue, Claude takes a counter-position · C1: present + problem-solve |
+| ⬜ | Exam-like fixed turn count (~5–6 turns), then session ends | P1 | User's choice: exam-realism over open-ended |
+| ⬜ | Feedback timing toggle (user chooses per session): gentle per-turn nudges OR clean end-of-session report | P1 | |
+| ⬜ | End-of-session report scored on real oral-exam dimensions | P0 | Fluency, accuracy, spontaneity, interaction, vocabulary range, task completion — with examples from what the user said + corrected versions |
+| ⬜ | Store speaking sessions in `exercise_log` (exercise_type `speaking_conversation`) | P1 | Replaces old `speaking_read` / `speaking_prompt` types |
 
 ## Phase 13 — Activities Fixes (revises Phase 10)
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
-| ✅ | Add vocabulary-source toggle (My words / Level practice) to reading + fill-blank | P0 | The core de-anchoring fix |
-| ✅ | Fill-blank: generate distractors that are same-level and plausibly fit the sentence | P0 | Forces understanding the sentence, not spotting the one known word |
-| ✅ | Fill-blank: optional free-type mode (no options) for a harder variant | P2 | Removes the multiple-choice shortcut entirely |
-| ✅ | Scenario/writing: prompts in German, modeled on real Schreiben tasks | P0 | Include explicit Leitpunkte (content points) + specify recipient so register (du/Sie) is testable |
-| ✅ | Scenario/writing: optional help words behind a "Wörter anzeigen, die helfen" button | P1 | Hidden by default so the answer isn't fed; revealed only if stuck |
-| ✅ | Scenario/writing: exam-style grading on the 4 official criteria | P0 | Kommunikative Zielerreichung/Erfüllung, Kohärenz, Wortschatz, Korrektheit — check each Leitpunkt covered + flag register errors. ~100-pt scale, 60 = pass |
-| ✅ | Reading: passage is level-appropriate with a few *new* stretch words woven in (comprehensible input) | P0 | Not built only from seen words |
-| ✅ | Reading: comprehension questions test meaning/inference, not word-spotting | P0 | Can't be answered by matching a familiar word |
+| ⬜ | Add vocabulary-source toggle (My words / Level practice) to reading + fill-blank | P0 | The core de-anchoring fix |
+| ⬜ | Fill-blank: generate distractors that are same-level and plausibly fit the sentence | P0 | Forces understanding the sentence, not spotting the one known word |
+| ⬜ | Fill-blank: optional free-type mode (no options) for a harder variant | P2 | Removes the multiple-choice shortcut entirely |
+| ⬜ | Scenario/writing: prompts in German, modeled on real Schreiben tasks | P0 | Include explicit Leitpunkte (content points) + specify recipient so register (du/Sie) is testable |
+| ⬜ | Scenario/writing: optional help words behind a "Wörter anzeigen, die helfen" button | P1 | Hidden by default so the answer isn't fed; revealed only if stuck |
+| ⬜ | Scenario/writing: exam-style grading on the 4 official criteria | P0 | Kommunikative Zielerreichung/Erfüllung, Kohärenz, Wortschatz, Korrektheit — check each Leitpunkt covered + flag register errors. ~100-pt scale, 60 = pass |
+| ⬜ | Reading: passage is level-appropriate with a few *new* stretch words woven in (comprehensible input) | P0 | Not built only from seen words |
+| ⬜ | Reading: comprehension questions test meaning/inference, not word-spotting | P0 | Can't be answered by matching a familiar word |
 | ⬜ | (Future idea) Reading → save new words from a passage into the vocab bank | P2 | Turns reading into a *source* of flashcard words; nice loop, deferred |
 
 ---
@@ -190,18 +191,50 @@ Replaces the word-anchored Phase 6 speaking exercises with a conversational, exa
 
 | Status | Task | Priority | Notes |
 |---|---|---|---|
-| ⬜ | Enable Row Level Security (RLS) on all Supabase tables + write policies (users only read/write their own progress) | P0 | Security gap if skipped — anyone with the anon key could otherwise query other users' data |
-| ⬜ | Error handling for Claude API failures (timeouts, rate limits, malformed JSON responses) | P0 | LLM calls fail sometimes — the app shouldn't crash, should retry or show a friendly message |
-| ⬜ | UI redesign: design-system pass (color tokens, typography, reusable components) then restyle pages | P1 | Define tokens first, restyle second |
-| ⬜ | Potato mascot: generate art (Recraft/DALL·E), add to hero / empty states / result screens | P1 | Leave placeholder image slots earlier so this drops in cleanly |
-| ⬜ | Loading states for all async actions (exercise generation, grading, session load) | P1 | Claude API calls take a few seconds — blank screens feel broken without this |
-| ⬜ | Basic cost control on Claude API usage (e.g. cache generated exercises, avoid redundant calls) | P1 | Matters once this isn't just for personal use — worth doing anyway as good practice |
-| ⬜ | Mobile-responsive layout check | P1 | You'll likely want to practice on your phone |
-| ⬜ | README: setup instructions, architecture overview, decisions/tradeoffs made | P1 | This is what makes the project interview-defensible — the "why," not just the "what" |
-| ⬜ | Environment variable separation: local dev vs. Vercel production | P2 | Avoid pointing prod at a dev DB or vice versa |
-| ⬜ | Basic analytics/logging (which exercise types get used, error rates) | P2 | Optional, but useful for iterating post-launch |
-| ⬜ | Automated tests for grading logic and mastery-stage transitions | P2 | Not essential for a personal tool, but strengthens the portfolio story if you have time |
-| ⬜ | Naming decision (app name) + logo | P2 | Parked earlier; multilingual-friendly name preferred (not German/potato-locked) |
+| ✅ | Enable Row Level Security (RLS) on all Supabase tables + write policies (users only read/write their own progress) | P0 | Migrations `0001`, `0003`, `0006`, `0009`, all scoped to `auth.uid()` |
+| ✅ | Error handling for Claude API failures (timeouts, rate limits, malformed JSON responses) | P0 | Centralized client (`src/lib/claude/client.ts`): explicit timeout + retries, friendly user-facing messages, server-side error logging. Defensive `?? []` fallbacks for tool-use fields Claude occasionally omits despite `required`. Not done: per-user rate limiting on these actions |
+| ✅ | UI redesign: design-system pass (color tokens, typography, reusable components) then restyle pages | P1 | Tokens/components in `src/components/ui/`, every page restyled to the locked design language below |
+| ✅ | Potato mascot: generate art, add to hero / empty states / result screens | P1 | Built as an inline SVG (`src/components/ui/mascot-placeholder.tsx`) rather than a raster asset — stays crisp at any size, no extra image files. On Home, Login, landing, and every exercise "session complete" screen, plus the favicon |
+| ✅ | Loading states for all async actions (exercise generation, grading, session load) | P1 | Every exercise session shows loading/generating text during async calls |
+| ✅ | Basic cost control on Claude API usage (e.g. cache generated exercises, avoid redundant calls) | P1 | `src/lib/practice/content-cache.ts` — cache-first with occasional fresh-variant generation |
+| ✅ | Mobile-responsive layout check | P1 | Responsive nav (bottom tab bar on mobile, inline on desktop) and layout throughout |
+| ✅ | README: setup instructions, architecture overview, decisions/tradeoffs made | P1 | |
+| ⬜ | Environment variable separation: local dev vs. production | P2 | Deferred until a deploy target is chosen (no deploy platform decided yet) |
+| ✅ | Basic analytics/logging (which exercise types get used, error rates) | P2 | Lightweight version: Claude API errors logged server-side (`console.error` in the client wrapper) before being translated to a friendly message; per-user usage stats already surfaced on Home. No cross-user usage dashboard |
+| ✅ | Automated tests for grading logic and mastery-stage transitions | P2 | Vitest — 13 tests covering `nextMasteryStage` transitions, `computeStreak`, and `shuffle` (`src/lib/practice/*.test.ts`) |
+| ✅ | Naming decision (app name) + logo | P2 | Renamed to **Knack**; wordmark set in a distinct display font (Baloo 2), favicon matches the mascot |
+
+---
+
+# Design language (locked)
+
+Settled via visual mockups. This is the handoff reference for the Phase 14 UI redesign.
+
+**Color — one saturated color throughout:**
+- Page/section background: yellow `#FFD43B` (fills areas fully — NOT pale cream behind white cards)
+- Accent: orange `#F97316` (streaks, mic button, active emphasis)
+- Text: near-black `#1A1A1A`; muted `#7A7A6E`; on-yellow dark gold `#4A3B00`
+- Success `#3B9E5B`, error `#D64545`
+- One color only — not per-screen colors.
+
+**Card style (the signature look):** white background, 2.5px solid black border, hard offset shadow (`box-shadow: 4px 4px 0 #1A1A1A` big / `3px 3px 0` small), rounded 14–16px corners. Every clickable thing uses this so it reads as tappable. (Chosen as "Option B" over soft-fill and colored-border alternatives.)
+
+**Buttons:** primary = solid black `#1A1A1A` + white text, rounded 14px. Secondary = white + 2px black border.
+
+**Pills:** active nav item + status labels = black pill, yellow text. Level/register/tag pills = rounded-full, soft tinted background with dark same-family text.
+
+**Layout rules:**
+- No page scrolling on exercise screens — fit one viewport. Pattern: compact top row (exercise-type pill + level pill + progress) → content card(s) → bottom action bar. Use grids (e.g. 2×2 options) to fit.
+- Header integrated into the colored page with a bold 2.5px black bottom divider — NOT a floating white bar.
+
+**Per-screen notes:**
+- Speaking: large circular mic button (orange, black border, offset shadow); examiner turns in white cards; user's spoken reply in a contrasting dark bubble.
+- Scenario writing: German prompt card with Leitpunkte as pill tags; register shown in the level pill (e.g. "B1 · Sie"); help words hidden behind a "💡 Wörter anzeigen" button.
+- Reading: passage card with stretch words softly highlighted; comprehension question tests meaning/inference; "My words / Level practice" toggle pill top-right.
+
+**Mascot:** potato, added as final art step. Leave marked placeholder image slots (hero/avatar spots) during the restyle.
+
+**Keep:** the existing rounded chunky corners and fonts — those were already good.
 
 ---
 

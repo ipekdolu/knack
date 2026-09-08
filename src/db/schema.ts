@@ -82,6 +82,8 @@ export const userSettings = pgTable("user_settings", {
     .references(() => authUsers.id),
   preferredLevel: levelEnum("preferred_level"),
   cardsPerSession: integer("cards_per_session"),
+  displayName: text("display_name"),
+  speakingTurns: integer("speaking_turns"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -155,6 +157,22 @@ export const userPoints = pgTable("user_points", {
     .references(() => authUsers.id),
   balance: integer("balance").notNull().default(0),
   updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// One row per costly Claude generation call (a fresh reading passage, a
+// fresh scenario prompt, a new conversation started) -- logged at
+// generation time, not completion time, so a user can't dodge the daily cap
+// by generating repeatedly without ever finishing. Counted per (user,
+// action, day) to enforce a soft rate limit; see src/lib/practice/rate-limit.ts.
+export const generationLog = pgTable("generation_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => authUsers.id),
+  action: text("action").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });

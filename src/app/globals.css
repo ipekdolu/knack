@@ -1,26 +1,58 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* The page background itself is the single saturated color — not a
+     pale tint behind separately-colored blocks. Cards float on top of it. */
+  --background: #ffd43b;
+  --surface: #ffffff;
+  --text: #1a1a1a;
+  --text-muted: #7a7a6e;
+
+  --primary: #ffd43b;
+  /* Text on yellow fills (dark gold, not gray). */
+  --primary-ink: #4a3b00;
+  --accent: #f97316;
+  --accent-ink: #6b2a05;
+  --peach: #f5c99b;
+  --peach-ink: #7a4a24;
+  --success: #3b9e5b;
+  --error: #d64545;
+
+  /* The signature hard-offset "sticker" shadow used on every card and the
+     mic button. Two sizes: big cards vs. small/compact ones. */
+  --shadow-hard: 4px 4px 0 0 var(--text);
+  --shadow-hard-sm: 3px 3px 0 0 var(--text);
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-surface: var(--surface);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-peach: var(--peach);
+  --color-peach-ink: var(--peach-ink);
+  --color-success: var(--success);
+  --color-error: var(--error);
+
+  --font-heading: var(--font-nunito);
+  --font-sans: var(--font-inter);
+  --font-logo: var(--font-logo);
+
+  --radius-card: 16px;
+  --radius-btn: 14px;
+  --radius-pill: 999px;
+
+  --shadow-hard: var(--shadow-hard);
+  --shadow-hard-sm: var(--shadow-hard-sm);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-sans), system-ui, sans-serif;
 }

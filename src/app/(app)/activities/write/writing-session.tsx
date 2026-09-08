@@ -1,10 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { startSession, type SessionWord } from "@/lib/practice/actions";
+import { startSession, getWordGlosses, type SessionWord } from "@/lib/practice/actions";
 import { chunkWords } from "@/lib/practice/chunk";
-import { gradeSentence, logSentenceResult, type SentenceGrade } from "@/lib/practice/grading";
+import {
+  gradeSentence,
+  getSentenceHint,
+  logSentenceResult,
+  type SentenceGrade,
+} from "@/lib/practice/grading";
+import { Card } from "@/components/ui/card";
+import { Pill } from "@/components/ui/pill";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { ExerciseTopBar } from "@/components/ui/exercise-top-bar";
+import { MascotPlaceholder } from "@/components/ui/mascot-placeholder";
 
 type Phase = "loading" | "prompt" | "grading" | "result" | "complete" | "error";
 
@@ -16,6 +25,9 @@ export default function WritingSession() {
   const [grade, setGrade] = useState<SentenceGrade | null>(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [glosses, setGlosses] = useState<Record<string, string>>({});
+  const [hint, setHint] = useState<string | null>(null);
+  const [hintLoading, setHintLoading] = useState(false);
 
   function begin() {
     setPhase("loading");
@@ -25,6 +37,7 @@ export default function WritingSession() {
         setIndex(0);
         setSentence("");
         setGrade(null);
+        setHint(null);
         setScore({ correct: 0, total: 0 });
         if (!level) {
           setError(
@@ -53,6 +66,19 @@ export default function WritingSession() {
 
   const current = groups[index];
 
+  // Meanings for the hover tooltip on each target word -- fetched per
+  // group, since a stuck learner may not know one of the words at all.
+  useEffect(() => {
+    if (!current) return;
+    let cancelled = false;
+    getWordGlosses(current).then((g) => {
+      if (!cancelled) setGlosses((prev) => ({ ...prev, ...g }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [current]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!current || !sentence.trim()) return;
@@ -73,7 +99,20 @@ export default function WritingSession() {
     }
   }
 
+  async function handleHint() {
+    if (!current || hintLoading) return;
+    setHintLoading(true);
+    try {
+      setHint(await getSentenceHint(current));
+    } catch {
+      // A failed hint isn't worth interrupting the exercise over.
+    } finally {
+      setHintLoading(false);
+    }
+  }
+
   function advance() {
+    setHint(null);
     if (index + 1 >= groups.length) {
       setPhase("complete");
     } else {
@@ -85,77 +124,68 @@ export default function WritingSession() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div className="mx-auto w-full max-w-md">
-        <Link href="/activities" className="text-sm text-gray-500 hover:underline">
-          &larr; Back
-        </Link>
-        <h1 className="mt-2 text-xl font-semibold">Write a Sentence</h1>
+        <ExerciseTopBar
+          backHref="/activities"
+          typeLabel="Sentence practice"
+          status={groups.length > 0 ? `${Math.min(index + 1, groups.length)} / ${groups.length}` : undefined}
+        />
 
         {phase === "error" && (
           <div className="mt-4 flex flex-col gap-3">
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="rounded-btn border-2 border-error bg-error/10 px-3 py-2 text-sm font-medium text-error">
               {error}
             </p>
             <div className="flex gap-2">
               {groups.length > 0 && index < groups.length && (
-                <button
-                  onClick={advance}
-                  className="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
-                >
+                <Button variant="secondary" onClick={advance}>
                   Skip
-                </button>
+                </Button>
               )}
-              <Link
-                href="/settings"
-                className="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
-              >
+              <ButtonLink href="/settings" variant="secondary">
                 Change level
-              </Link>
+              </ButtonLink>
             </div>
           </div>
         )}
 
         {phase === "loading" && (
-          <p className="mt-4 text-gray-500">Loading session...</p>
+          <p className="mt-4 font-medium text-primary-ink/70">Loading session...</p>
         )}
 
         {current && (phase === "prompt" || phase === "grading" || phase === "result") && (
           <div className="mt-4 flex flex-col gap-4">
-            <p className="text-xs text-gray-500">
-              {index + 1} / {groups.length}
-            </p>
-
-            <div className="flex min-h-64 flex-col justify-center gap-3 rounded-lg border border-gray-300 p-6">
-              <p className="text-sm text-gray-500">
-                Write one German sentence using all of these words:
+            <Card className="flex flex-col justify-center gap-3">
+              <p className="text-sm font-medium text-text-muted">
+                Write one German sentence using all of these words:{" "}
+                <span className="font-normal">(hover a word for its meaning)</span>
               </p>
               <div className="flex flex-wrap gap-2">
                 {current.map((w) => {
                   const wordGrade = grade?.wordResults.find(
                     (r) => r.wordId === w.wordId,
                   );
-                  let classes =
-                    "rounded-full border px-3 py-1 text-sm font-medium border-gray-300";
-                  if (phase === "result" && wordGrade) {
-                    classes = wordGrade.usedCorrectly
-                      ? "rounded-full border px-3 py-1 text-sm font-medium border-green-500 bg-green-50 text-green-800"
-                      : "rounded-full border px-3 py-1 text-sm font-medium border-red-500 bg-red-50 text-red-800";
-                  }
+                  const tone =
+                    phase === "result" && wordGrade
+                      ? wordGrade.usedCorrectly
+                        ? "success"
+                        : "error"
+                      : "neutral";
                   return (
-                    <span key={w.wordId} className={classes}>
+                    <Pill key={w.wordId} tone={tone} title={glosses[w.wordId]}>
                       {w.gender ? `${w.gender} ` : ""}
                       {w.lemma}
-                    </span>
+                    </Pill>
                   );
                 })}
               </div>
 
               {phase === "result" && grade && (
                 <div className="mt-2 flex flex-col gap-2 text-left text-sm">
-                  <p className="text-gray-700">{grade.feedback}</p>
+                  <p className="text-text">{grade.feedback}</p>
                   {grade.grammarIssues.length > 0 && (
-                    <ul className="list-inside list-disc text-gray-500">
+                    <ul className="list-inside list-disc text-text-muted">
                       {grade.grammarIssues.map((issue, i) => (
                         <li key={i}>{issue}</li>
                       ))}
@@ -163,16 +193,16 @@ export default function WritingSession() {
                   )}
                   {grade.correctedSentence.trim().toLowerCase() !==
                     sentence.trim().toLowerCase() && (
-                    <p className="italic text-gray-600">
+                    <p className="italic text-text-muted">
                       Suggested: {grade.correctedSentence}
                     </p>
                   )}
                   {!grade.levelAppropriate && grade.levelNote && (
-                    <p className="text-amber-700">{grade.levelNote}</p>
+                    <p className="font-medium text-accent-ink">{grade.levelNote}</p>
                   )}
                 </div>
               )}
-            </div>
+            </Card>
 
             {(phase === "prompt" || phase === "grading") && (
               <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -182,48 +212,62 @@ export default function WritingSession() {
                   disabled={phase === "grading"}
                   placeholder="Schreib einen Satz..."
                   rows={3}
-                  className="rounded-md border border-gray-300 px-3 py-2 disabled:opacity-50"
+                  className="rounded-btn border-[2.5px] border-text px-4 py-3 font-medium shadow-hard-sm disabled:opacity-50 focus:outline-none"
                   autoFocus
                 />
-                <button
-                  type="submit"
-                  disabled={phase === "grading" || !sentence.trim()}
-                  className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800 disabled:opacity-50"
-                >
-                  {phase === "grading" ? "Grading..." : "Submit"}
-                </button>
+
+                {hint && (
+                  <p className="rounded-btn border-2 border-accent bg-accent/10 px-3 py-2 text-sm font-medium text-accent-ink">
+                    💡 {hint}
+                  </p>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleHint}
+                    disabled={hintLoading || phase === "grading"}
+                    aria-label="Get a hint"
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-btn border-2 border-text bg-surface text-lg shadow-hard-sm transition active:scale-95 disabled:opacity-50 hover:border-accent"
+                  >
+                    {hintLoading ? "…" : "💡"}
+                  </button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={advance}
+                    disabled={phase === "grading"}
+                  >
+                    Skip
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1"
+                    disabled={phase === "grading" || !sentence.trim()}
+                  >
+                    {phase === "grading" ? "Grading..." : "Submit"}
+                  </Button>
+                </div>
               </form>
             )}
 
-            {phase === "result" && (
-              <button
-                onClick={advance}
-                className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-              >
-                Next
-              </button>
-            )}
+            {phase === "result" && <Button onClick={advance}>Next</Button>}
           </div>
         )}
 
         {phase === "complete" && (
-          <div className="mt-4 flex flex-col gap-4 text-center">
-            <p className="text-lg">
+          <div className="mt-4 flex flex-col items-center gap-4 text-center">
+            <MascotPlaceholder alt="Potato mascot celebrating" size={72} />
+            <p className="font-heading text-lg font-extrabold">
               Session complete: {score.correct} / {score.total} sentences fully correct
             </p>
             <div className="flex gap-2">
-              <Link
-                href="/home"
-                className="flex-1 rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
-              >
+              <ButtonLink href="/home" variant="secondary" className="flex-1">
                 Home
-              </Link>
-              <button
-                onClick={begin}
-                className="flex-1 rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
-              >
+              </ButtonLink>
+              <Button className="flex-1" onClick={begin}>
                 Practice again
-              </button>
+              </Button>
             </div>
           </div>
         )}
