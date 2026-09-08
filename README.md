@@ -2,8 +2,10 @@
 
 A German vocabulary trainer that goes beyond flashcards: flashcards and
 fill-in-the-blank for recognition, plus sentence writing, short reading
-passages, scenario writing, and a live spoken conversation -- each graded by
-Claude with specific, in-context feedback instead of a right/wrong checkmark.
+passages, scenario writing, and a live spoken conversation -- each graded
+with specific, in-context feedback instead of a right/wrong checkmark.
+
+Live: https://knackde-azure.vercel.app
 
 ## Stack
 
@@ -12,11 +14,12 @@ Claude with specific, in-context feedback instead of a right/wrong checkmark.
 - **Supabase** -- Google OAuth (Supabase Auth) + Postgres, with Row Level
   Security on every table
 - **Drizzle ORM** -- schema-first migrations (`drizzle/`)
-- **Anthropic Claude API** -- `claude-opus-5` for judgment-heavy generation/
-  grading, `claude-haiku-4-5` for cheap calls (hints, glosses)
-- **Web Speech API** -- in-browser speech-to-text and text-to-speech for the
-  Speaking exercise (no external speech vendor)
+- **Anthropic API** -- Opus for judgment-heavy work (grading), Sonnet for
+  content generation, Haiku for cheap calls (hints, glosses)
+- **Web Speech API** -- in-browser speech-to-text and text-to-speech for
+  the Speaking exercise (no external speech vendor)
 - **Vitest** -- unit tests for the pure grading/mastery logic
+- **Vercel** -- hosting and CI deploys on push to `main`
 
 ## Getting started
 
@@ -35,11 +38,11 @@ Required environment variables (`.env.local`):
 | `DATABASE_URL` | Postgres connection string (Supabase project settings) |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
-| `ANTHROPIC_API_KEY` | Claude API key |
+| `ANTHROPIC_API_KEY` | Anthropic API key |
 
 Google OAuth must be enabled in the Supabase Auth dashboard, with
-`http://localhost:3000/auth/callback` (and your deployed URL) as an
-authorized redirect.
+`<your-url>/auth/callback` listed as an authorized redirect (both the
+Supabase Redirect URLs list and the Site URL).
 
 ## Scripts
 
@@ -75,8 +78,10 @@ src/lib/practice/        Server actions (`"use server"`), one file per
                          (sentence grading + hints), reading.ts, scenario.ts,
                          conversation.ts (speaking), content-cache.ts
                          (caches generated exercise content per word so
-                         repeat reviews don't re-hit Claude), shared.ts
-                         (mastery-stage/SRS logic, auth helper).
+                         repeat reviews don't re-hit the model),
+                         rate-limit.ts (per-user daily caps on every
+                         model-backed action), shared.ts (mastery-stage/SRS
+                         logic, auth helper).
 src/lib/claude/client.ts Centralized Anthropic client construction (explicit
                          timeout + retries) and error translation, so every
                          call site gets the same friendly-error handling.
@@ -97,9 +102,11 @@ scripts/seed-words.ts    One-off seed script for the Goethe-Institut lists.
 - `word_content` -- generated exercise content (flashcard sentences,
   fill-blank items) cached per word, several variants deep, so the same
   word doesn't always show identical material.
-- `exercise_log` -- every attempt across every exercise type, with
-  Claude's feedback stored as JSON for later review.
-- `user_settings` -- level, cards/session, display name.
+- `exercise_log` -- every attempt across every exercise type, with the
+  grading feedback stored as JSON for later review.
+- `generation_log` -- one row per model-backed generation, used to
+  enforce per-user daily limits.
+- `user_settings` -- level, cards/session, speaking turns, display name.
 
 ### Notable decisions
 
@@ -108,11 +115,15 @@ scripts/seed-words.ts    One-off seed script for the Goethe-Institut lists.
   learning/new -> new). This is deliberately aggressive -- the app is about
   actually knowing a word, not about a streak counter that survives repeated
   mistakes.
-- **Content caching over regeneration**: exercise content (flashback
+- **Content caching over regeneration**: exercise content (flashcard
   sentences, fill-blank items, reading passages) is generated once per word
-  and cached, with an occasional chance of a fresh variant. Keeps Claude API
-  cost and latency down without every review looking identical.
-- **Server actions, not a REST API**: every Claude call and DB write is a
+  and cached, with an occasional chance of a fresh variant. Keeps API cost
+  and latency down without every review looking identical.
+- **Model tiering**: generation (reading passages, scenario prompts,
+  conversation turns) runs on a faster mid-tier model; grading and other
+  judgment calls run on the strongest tier, since accuracy matters more
+  there than latency.
+- **Server actions, not a REST API**: every model call and DB write is a
   Next.js server action gated by `requireUser()`, which re-checks the
   Supabase session on every call rather than trusting a client-supplied
   user ID.
@@ -123,21 +134,13 @@ scripts/seed-words.ts    One-off seed script for the Goethe-Institut lists.
 
 ## Security
 
-- **Row Level Security** is enabled on every table (`drizzle/0001`,
-  `0003`, `0006`, `0009`), scoped to `auth.uid()` -- a user's queries can
-  only see their own rows, even if the Supabase anon key leaked.
+- **Row Level Security** is enabled on every table, scoped to `auth.uid()`
+  -- a user's queries can only see their own rows, even if the Supabase
+  anon key leaked.
 - **Auth is Google OAuth via Supabase**, no passwords stored by this app.
 - **Every server action re-derives the user** from the session
   (`requireUser()`) rather than trusting an ID passed from the client.
-- **Claude API calls are server-only** -- the API key never reaches the
+- **Model API calls are server-only** -- the API key never reaches the
   browser.
-- Not yet done: per-user rate limiting on Claude-backed actions, and a
-  dependency-vulnerability sweep (see `npm audit`).
-
-## Known gaps / not done
-
-- No production deploy target wired up yet (dev/prod env separation
-  deferred until that's decided).
-- No analytics/usage dashboard beyond the per-user stats on the Home page.
-- Single-user-in-mind features (missions/points) were tried and removed;
-  the schema tables still exist but are unused.
+- **Per-user daily rate limits** on every model-backed action, to bound
+  API cost under misuse or a runaway client loop.
