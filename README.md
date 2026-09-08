@@ -1,146 +1,51 @@
-# Knack
+# Knack 🥔
 
-A German vocabulary trainer that goes beyond flashcards: flashcards and
-fill-in-the-blank for recognition, plus sentence writing, short reading
-passages, scenario writing, and a live spoken conversation -- each graded
-with specific, in-context feedback instead of a right/wrong checkmark.
+A German vocabulary trainer that checks how you actually use words instead of whether you can recognize them on a flashcard.
 
-Live: https://knackde-azure.vercel.app
+Most vocab apps stop at flashcards. Knack also has you write sentences, read short passages, write scenario texts (like a complaint email), and hold a spoken conversation with an AI examiner. Each of those gets real feedback on what you got right and wrong, not just a checkmark.
 
-## Stack
+Live demo: [knackde-azure.vercel.app](https://knackde-azure.vercel.app)
 
-- **Next.js 16 (App Router, Turbopack)** + TypeScript + React 19
-- **Tailwind CSS v4** -- CSS-based `@theme` tokens, no `tailwind.config.ts`
-- **Supabase** -- Google OAuth (Supabase Auth) + Postgres, with Row Level
-  Security on every table
-- **Drizzle ORM** -- schema-first migrations (`drizzle/`)
-- **Anthropic API** -- Opus for judgment-heavy work (grading), Sonnet for
-  content generation, Haiku for cheap calls (hints, glosses)
-- **Web Speech API** -- in-browser speech-to-text and text-to-speech for
-  the Speaking exercise (no external speech vendor)
-- **Vitest** -- unit tests for the pure grading/mastery logic
-- **Vercel** -- hosting and CI deploys on push to `main`
+## What it does
 
-## Getting started
+- Flashcards and fill-in-the-blank for quick recognition practice.
+- Writing exercises: write a sentence, or a longer scenario text like a complaint email. These are graded on the criteria the Goethe/telc exams actually use (task completion, coherence, vocabulary, grammar), including whether you got the du/Sie register right.
+- Reading: passages at your level with a few harder words mixed in, and comprehension questions that test whether you understood the text rather than whether you can spot a familiar word.
+- Speaking: a back-and-forth spoken conversation with an AI examiner, in German, based on how the CEFR oral exams are structured, with feedback at the end.
+- Spaced repetition and progress tracking from A1 to C1, plus streaks.
 
-```bash
-npm install
-cp .env.example .env.local   # fill in the values below
-npm run db:migrate           # apply schema to your Supabase Postgres
-npm run db:seed              # load the Goethe-Institut word lists
-npm run dev
-```
+## Built with
 
-Required environment variables (`.env.local`):
+Next.js 16 (App Router), TypeScript, React 19, Tailwind CSS v4, Supabase (Postgres + Google OAuth), Drizzle ORM, the Anthropic API, the Web Speech API, and Vercel.
+
+## Some decisions worth explaining
+
+The framework choices are standard. These were the calls that took some thought:
+
+- Grading looks at how a word is used, not whether a specific string appears. Open answers go to the model with a rubric based on the real exam criteria, and it returns structured feedback with corrections and a score.
+- A wrong answer sends a word back toward "new" instead of just slowing its review down. The point is to know the word, not to protect a streak.
+- Generated exercise content is cached per word and reused, with a small chance of a new variant, so the API cost and load times stay down without every review looking the same.
+- Different tasks use different models: grading runs on the strongest one, content generation on a faster one, and cheap things like hints on the cheapest.
+- Every server action re-checks who the user is from their session rather than trusting an ID sent from the browser, and Row Level Security is on for every table, so a leaked key still can't read someone else's data.
+- Speech recognition happens in the browser with the Web Speech API, so no audio is sent to a server and there's no per-call transcription cost.
+
+## Running it locally
+
+Install dependencies, copy `.env.example` to `.env.local` and fill in the values, then apply the database schema and start the dev server:
+
+    npm install
+    cp .env.example .env.local
+    npm run db:migrate
+    npm run db:seed
+    npm run dev
+
+Environment variables you'll need:
 
 | Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | Postgres connection string (Supabase project settings) |
+| --- | --- |
+| `DATABASE_URL` | Supabase Postgres connection string |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 
-Google OAuth must be enabled in the Supabase Auth dashboard, with
-`<your-url>/auth/callback` listed as an authorized redirect (both the
-Supabase Redirect URLs list and the Site URL).
-
-## Scripts
-
-| Command | What it does |
-|---|---|
-| `npm run dev` | Start the dev server |
-| `npm run build` | Production build (also type-checks) |
-| `npm test` | Run the Vitest suite |
-| `npm run lint` | ESLint |
-| `npm run db:generate` | Generate a new migration from `src/db/schema.ts` |
-| `npm run db:migrate` | Apply pending migrations |
-| `npm run db:seed` | Load the seed word list into `words` |
-| `npm run db:studio` | Drizzle Studio (browse the DB) |
-
-## Architecture
-
-```
-src/app/(app)/          Authenticated routes -- Home, Vocabulary, Activities,
-                         Settings. AppLayout does the auth check + shell.
-src/app/login, /auth     OAuth sign-in and callback handling.
-src/app/page.tsx         Public landing page.
-
-src/components/ui/       Design-system primitives (Card, Button, Pill,
-                         AnswerOption, the mascot SVG, ...) -- styling only,
-                         no data-fetching.
-src/components/          exercise-session.tsx: the shared flashcard/
-                         fill-blank session component reused by every
-                         Vocabulary and Activities entry point that needs one.
-
-src/lib/practice/        Server actions (`"use server"`), one file per
-                         concern: actions.ts (sessions, dashboard stats,
-                         flashcard/fill-blank generation), grading.ts
-                         (sentence grading + hints), reading.ts, scenario.ts,
-                         conversation.ts (speaking), content-cache.ts
-                         (caches generated exercise content per word so
-                         repeat reviews don't re-hit the model),
-                         rate-limit.ts (per-user daily caps on every
-                         model-backed action), shared.ts (mastery-stage/SRS
-                         logic, auth helper).
-src/lib/claude/client.ts Centralized Anthropic client construction (explicit
-                         timeout + retries) and error translation, so every
-                         call site gets the same friendly-error handling.
-src/lib/speech/          Web Speech API hooks (recognition + synthesis).
-src/lib/supabase/        Browser/server Supabase clients.
-
-src/db/schema.ts         Drizzle schema -- source of truth for the DB.
-drizzle/                 Generated SQL migrations.
-scripts/seed-words.ts    One-off seed script for the Goethe-Institut lists.
-```
-
-### Data model (short version)
-
-- `words` -- the vocabulary bank, seeded by level (A1-C1) plus any
-  user-added words.
-- `user_word_progress` -- one row per (user, word): mastery stage
-  (new/learning/mastered), spaced-repetition due date, streaks.
-- `word_content` -- generated exercise content (flashcard sentences,
-  fill-blank items) cached per word, several variants deep, so the same
-  word doesn't always show identical material.
-- `exercise_log` -- every attempt across every exercise type, with the
-  grading feedback stored as JSON for later review.
-- `generation_log` -- one row per model-backed generation, used to
-  enforce per-user daily limits.
-- `user_settings` -- level, cards/session, speaking turns, display name.
-
-### Notable decisions
-
-- **Mastery model resets on a miss** rather than just slowing down: any
-  incorrect answer drops a word back toward "new" (mastered -> learning,
-  learning/new -> new). This is deliberately aggressive -- the app is about
-  actually knowing a word, not about a streak counter that survives repeated
-  mistakes.
-- **Content caching over regeneration**: exercise content (flashcard
-  sentences, fill-blank items, reading passages) is generated once per word
-  and cached, with an occasional chance of a fresh variant. Keeps API cost
-  and latency down without every review looking identical.
-- **Model tiering**: generation (reading passages, scenario prompts,
-  conversation turns) runs on a faster mid-tier model; grading and other
-  judgment calls run on the strongest tier, since accuracy matters more
-  there than latency.
-- **Server actions, not a REST API**: every model call and DB write is a
-  Next.js server action gated by `requireUser()`, which re-checks the
-  Supabase session on every call rather than trusting a client-supplied
-  user ID.
-- **Speech stays client-side**: the Speaking exercise uses the browser's
-  own Web Speech API instead of a server-side transcription vendor --
-  no audio ever leaves the browser except as text, and there's no per-call
-  transcription cost.
-
-## Security
-
-- **Row Level Security** is enabled on every table, scoped to `auth.uid()`
-  -- a user's queries can only see their own rows, even if the Supabase
-  anon key leaked.
-- **Auth is Google OAuth via Supabase**, no passwords stored by this app.
-- **Every server action re-derives the user** from the session
-  (`requireUser()`) rather than trusting an ID passed from the client.
-- **Model API calls are server-only** -- the API key never reaches the
-  browser.
-- **Per-user daily rate limits** on every model-backed action, to bound
-  API cost under misuse or a runaway client loop.
+You'll also need Google OAuth enabled in the Supabase Auth dashboard, with `<your-url>/auth/callback` set as an authorized redirect.
